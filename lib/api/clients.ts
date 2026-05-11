@@ -22,7 +22,7 @@ export interface CreateClientPayload {
   documentNumber?: string
 }
 
-export interface UpdateClientPayload extends Partial<CreateClientPayload> {}
+export type UpdateClientPayload = Partial<CreateClientPayload>
 
 export interface ClientHistoryItem {
   date: string
@@ -32,26 +32,59 @@ export interface ClientHistoryItem {
   petName?: string
 }
 
+export interface ClientHistory {
+  id: string
+  name: string
+  email?: string
+  phone?: string
+  pets: unknown[]
+  sales: unknown[]
+  appointments: unknown[]
+  stats: {
+    totalPets: number
+    totalSales: number
+    totalAppointments: number
+    totalSpent: number
+  }
+}
+
+interface ClientsResponse {
+  clients: Client[]
+}
+
+interface ClientResponse {
+  client: Client
+}
+
+interface ClientHistoryResponse {
+  history: ClientHistory
+}
+
 export async function getClients(): Promise<Client[]> {
-  return get<Client[]>('/clients')
+  const response = await get<ClientsResponse>('/clients')
+  return response.clients
 }
 
 export async function getClient(id: string): Promise<Client> {
-  return get<Client>(`/clients/${id}`)
+  const response = await get<ClientResponse>(`/clients/${id}`)
+  return response.client
 }
 
 export async function createClient(data: CreateClientPayload): Promise<Client> {
-  return post<Client>('/clients', data)
+  const response = await post<ClientResponse>('/clients', data)
+  return response.client
 }
 
 export async function updateClient(id: string, data: UpdateClientPayload): Promise<Client> {
-  return put<Client>(`/clients/${id}`, data)
+  const response = await put<ClientResponse>(`/clients/${id}`, data)
+  return response.client
 }
 
 export async function deleteClient(id: string): Promise<void> {
   return del(`/clients/${id}`)
 }
 
-export async function getClientHistory(id: string): Promise<ClientHistoryItem[]> {
-  return get<ClientHistoryItem[]>(`/clients/${id}/history`)
+export async function getClientHistory(id: string): Promise<ClientHistory> {
+  const response = await get<ClientHistoryResponse>(`/clients/${id}/history`)
+  return response.history
 }

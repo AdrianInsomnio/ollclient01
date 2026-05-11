@@ -27,7 +27,7 @@ export default function LoginPage() {
       const response = await login({ email, password, organizationId: orgId })
       authLogin(response.token, response.user)
 
-      // Router según rol (normalizar a mayúsculas)
+      // Router según rol
       const roleRoutes: Record<string, string> = {
         USER: '/workstation/user',
         VET: '/workstation/vet',

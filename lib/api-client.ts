@@ -62,6 +62,10 @@ async function request<T>(
         )
       }
 
+      if (response.status === 204) {
+        return undefined as T
+      }
+
       return await response.json()
     } catch (error) {
       lastError = error as Error
@@ -94,6 +98,7 @@ async function request<T>(
   }
 
   clearTimeout(timeoutId)
+  throw new ApiError('UNKNOWN_ERROR', lastError?.message || 'Error inesperado', 0)
 }
 
 export async function get<T>(endpoint: string, config?: RequestConfig): Promise<T> {

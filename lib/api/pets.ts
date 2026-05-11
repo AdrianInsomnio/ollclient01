@@ -22,26 +22,39 @@ export interface CreatePetPayload {
   clientId: string
 }
 
-export interface UpdatePetPayload extends Partial<CreatePetPayload> {}
+export type UpdatePetPayload = Partial<CreatePetPayload>
+
+interface PetsResponse {
+  pets: Pet[]
+}
+
+interface PetResponse {
+  pet: Pet
+}
 
 export async function getPets(): Promise<Pet[]> {
-  return get<Pet[]>('/pets')
+  const response = await get<PetsResponse>('/pets')
+  return response.pets
 }
 
 export async function getPet(id: string): Promise<Pet> {
-  return get<Pet>(`/pets/${id}`)
+  const response = await get<PetResponse>(`/pets/${id}`)
+  return response.pet
 }
 
 export async function getPetsByClient(clientId: string): Promise<Pet[]> {
-  return get<Pet[]>(`/pets?clientId=${clientId}`)
+  const response = await get<PetsResponse>(`/pets?clientId=${clientId}`)
+  return response.pets
 }
 
 export async function createPet(data: CreatePetPayload): Promise<Pet> {
-  return post<Pet>('/pets', data)
+  const response = await post<PetResponse>('/pets', data)
+  return response.pet
 }
 
 export async function updatePet(id: string, data: UpdatePetPayload): Promise<Pet> {
-  return put<Pet>(`/pets/${id}`, data)
+  const response = await put<PetResponse>(`/pets/${id}`, data)
+  return response.pet
 }
 
 export async function deletePet(id: string): Promise<void> {
