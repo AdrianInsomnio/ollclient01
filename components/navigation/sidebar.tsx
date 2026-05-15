@@ -165,7 +165,7 @@ function MenuItemComponent({ item, depth = 0 }: { item: MenuItem; depth?: number
         <button
           onClick={handleClick}
           className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
-          style={{ paddingLeft: `${${depth * 12 + 12}}px` }}
+          style={{ paddingLeft: `${depth * 12 + 12}px` }}
         >
           <div className='flex items-center gap-3'>
             <Icon className='w-5 h-5' />
@@ -177,7 +177,7 @@ function MenuItemComponent({ item, depth = 0 }: { item: MenuItem; depth?: number
         <Link
           href={item.href || '#'}
           className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
-          style={{ paddingLeft: `${${depth * 12 + 12}}px` }}
+          style={{ paddingLeft: `${depth * 12 + 12}px` }}
         >
           <Icon className='w-5 h-5' />
           <span>{item.label}</span>
