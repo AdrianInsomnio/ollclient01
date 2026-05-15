@@ -1,8 +1,10 @@
-'use client'
+﻿'use client'
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
+import { Sidebar } from '@/components/navigation/sidebar'
+import { UserNav } from '@/components/navigation/user-nav'
 
 export default function UserLayout({
   children,
@@ -10,7 +12,7 @@ export default function UserLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const { user, isAuthenticated, logout } = useAuthStore()
+  const { user, isAuthenticated } = useAuthStore()
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'USER') {
@@ -23,23 +25,12 @@ export default function UserLayout({
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b bg-white px-6 py-3 flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Recepción</h1>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">{user?.username}</span>
-          <button
-            onClick={() => {
-              logout()
-              router.push('/login')
-            }}
-            className="text-sm text-red-600 hover:underline"
-          >
-            Salir
-          </button>
-        </div>
-      </header>
-      <main className="flex-1 p-6">{children}</main>
+    <div className='min-h-screen flex flex-col md:flex-row'>
+      <Sidebar />
+      <div className='flex-1 flex flex-col'>
+        <UserNav />
+        <main className='flex-1 p-6 bg-gray-50'>{children}</main>
+      </div>
     </div>
   )
 }
