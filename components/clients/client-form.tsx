@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,6 +15,7 @@ interface ClientFormProps {
 
 export function ClientForm({ client, onSuccess }: ClientFormProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -22,8 +24,7 @@ export function ClientForm({ client, onSuccess }: ClientFormProps) {
     email: client?.email || '',
     phone: client?.phone || '',
     address: client?.address || '',
-    documentType: client?.documentType || 'CI',
-    documentNumber: client?.documentNumber || '',
+    documentId: client?.documentId || '',
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,13 +39,14 @@ export function ClientForm({ client, onSuccess }: ClientFormProps) {
       } else {
         // Create new client
         await createClient(formData)
+        // Invalidar cache de clientes para actualizar la lista
+        queryClient.invalidateQueries({ queryKey: ['clients'] })
       }
       
       if (onSuccess) {
         onSuccess()
       } else {
         router.push('/workstation/user/clientes')
-        router.refresh()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar cliente')
@@ -76,12 +78,12 @@ export function ClientForm({ client, onSuccess }: ClientFormProps) {
                 value={formData.name}
                 onChange={(e) => handleChange('name', e.target.value)}
                 required
-                placeholder='Juan Pérez'
+                placeholder='Juan Perez'
               />
             </div>
 
             <div className='space-y-2'>
-              <label htmlFor='phone' className='text-sm font-medium'>Teléfono *</label>
+              <label htmlFor='phone' className='text-sm font-medium'>Telefono *</label>
               <Input
                 id='phone'
                 value={formData.phone}
@@ -105,7 +107,7 @@ export function ClientForm({ client, onSuccess }: ClientFormProps) {
             </div>
 
             <div className='space-y-2'>
-              <label htmlFor='address' className='text-sm font-medium'>Dirección</label>
+              <label htmlFor='address' className='text-sm font-medium'>Direccion</label>
               <Input
                 id='address'
                 value={formData.address}
@@ -115,26 +117,14 @@ export function ClientForm({ client, onSuccess }: ClientFormProps) {
             </div>
           </div>
 
-          <div className='grid gap-4 md:grid-cols-2'>
-            <div className='space-y-2'>
-              <label htmlFor='documentType' className='text-sm font-medium'>Tipo de documento</label>
-              <Input
-                id='documentType'
-                value={formData.documentType}
-                onChange={(e) => handleChange('documentType', e.target.value)}
-                placeholder='CI'
-              />
-            </div>
-
-            <div className='space-y-2'>
-              <label htmlFor='documentNumber' className='text-sm font-medium'>Número de documento</label>
-              <Input
-                id='documentNumber'
-                value={formData.documentNumber}
-                onChange={(e) => handleChange('documentNumber', e.target.value)}
-                placeholder='12345678'
-              />
-            </div>
+          <div className='space-y-2'>
+            <label htmlFor='documentId' className='text-sm font-medium'>Documento (CI/RUT)</label>
+            <Input
+              id='documentId'
+              value={formData.documentId}
+              onChange={(e) => handleChange('documentId', e.target.value)}
+              placeholder='12345678'
+            />
           </div>
 
           <div className='flex gap-4 justify-end pt-4'>

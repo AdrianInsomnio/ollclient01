@@ -62,8 +62,8 @@ export default function ClientDetailPage() {
             {client.address && (
               <div className='flex items-center gap-3'><MapPin className='h-4 w-4 text-gray-400' /><span>{client.address}</span></div>
             )}
-            {client.documentNumber && (
-              <div className='flex items-center gap-3'><User className='h-4 w-4 text-gray-400' /><span>{client.documentType} {client.documentNumber}</span></div>
+            {client.documentId && (
+              <div className='flex items-center gap-3'><User className='h-4 w-4 text-gray-400' /><span>{client.documentId}</span></div>
             )}
           </CardContent>
         </Card>
@@ -118,3 +118,4 @@ export default function ClientDetailPage() {
     </div>
   )
 }
+

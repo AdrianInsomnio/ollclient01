@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,9 +16,9 @@ interface PetFormProps {
 
 export function PetForm({ pet, clientId: initialClientId, onSuccess }: PetFormProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const searchParams = useSearchParams()
   const clientId = initialClientId || searchParams.get('clientId') || ''
-
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -26,7 +27,7 @@ export function PetForm({ pet, clientId: initialClientId, onSuccess }: PetFormPr
     name: pet?.name || '',
     species: pet?.species || '',
     breed: pet?.breed || '',
-    age: pet?.age || undefined,
+    birthDate: pet?.birthDate || undefined,
     weight: pet?.weight || undefined,
     clientId: clientId,
   })
@@ -44,11 +45,12 @@ export function PetForm({ pet, clientId: initialClientId, onSuccess }: PetFormPr
 
     try {
       await createPet(formData)
+      // Invalidar cache de mascotas para actualizar la lista
+      queryClient.invalidateQueries({ queryKey: ['pets'] })
       if (onSuccess) {
         onSuccess()
       } else {
         router.push('/workstation/user/mascotas')
-        router.refresh()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar mascota')
@@ -103,19 +105,18 @@ export function PetForm({ pet, clientId: initialClientId, onSuccess }: PetFormPr
                 id='breed'
                 value={formData.breed}
                 onChange={(e) => handleChange('breed', e.target.value)}
-                placeholder='Labrador, Siamés, etc.'
+                placeholder='Labrador, Siames, etc.'
               />
             </div>
 
             <div className='space-y-2'>
-              <label htmlFor='age' className='text-sm font-medium'>Edad (años)</label>
+              <label htmlFor='birthDate' className='text-sm font-medium'>Fecha de nacimiento</label>
               <Input
-                id='age'
-                type='number'
-                min='0'
-                value={formData.age || ''}
-                onChange={(e) => handleChange('age', e.target.value ? parseInt(e.target.value) : undefined)}
-                placeholder='3'
+                id='birthDate'
+                type='date'
+                value={formData.birthDate ? formData.birthDate.split('T')[0] : ''}
+                onChange={(e) => handleChange('birthDate', e.target.value ? new Date(e.target.value).toISOString() : undefined)}
+                placeholder='2020-01-15'
               />
             </div>
           </div>
@@ -145,7 +146,6 @@ export function PetForm({ pet, clientId: initialClientId, onSuccess }: PetFormPr
               />
             </div>
           )}
-
 
           <div className='flex gap-4 justify-end pt-4'>
             <Button

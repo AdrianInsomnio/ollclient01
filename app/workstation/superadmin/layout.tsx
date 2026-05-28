@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -6,7 +6,7 @@ import { useAuthStore } from '@/lib/auth-store'
 import Sidebar from '@/components/navigation/sidebar'
 import { UserNav } from '@/components/navigation/user-nav'
 
-export default function AdminLayout({
+export default function SuperAdminLayout({
   children,
 }: {
   children: React.ReactNode
@@ -15,12 +15,12 @@ export default function AdminLayout({
   const { user, isAuthenticated } = useAuthStore()
 
   useEffect(() => {
-    if (!isAuthenticated || user?.role !== 'ADMIN') {
+    if (!isAuthenticated || user?.role !== 'SUPER_ADMIN') {
       router.push('/login')
     }
   }, [user, isAuthenticated, router])
 
-  if (!isAuthenticated || user?.role !== 'ADMIN') {
+  if (!isAuthenticated || user?.role !== 'SUPER_ADMIN') {
     return null
   }
 

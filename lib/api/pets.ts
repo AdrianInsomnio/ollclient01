@@ -1,11 +1,11 @@
-import { get, post, put, del } from '../api-client'
+﻿import { get, post, put, del } from '../api-client'
 
 export interface Pet {
   id: string
   name: string
   species: string
   breed?: string
-  age?: number
+  birthDate?: string
   weight?: number
   clientId: string
   tenantId: string
@@ -17,7 +17,7 @@ export interface CreatePetPayload {
   name: string
   species: string
   breed?: string
-  age?: number
+  birthDate?: string
   weight?: number
   clientId: string
 }
@@ -38,12 +38,12 @@ export async function getPets(): Promise<Pet[]> {
 }
 
 export async function getPet(id: string): Promise<Pet> {
-  const response = await get<PetResponse>(`/pets/${id}`)
+  const response = await get<PetResponse>('/pets/' + id)
   return response.pet
 }
 
 export async function getPetsByClient(clientId: string): Promise<Pet[]> {
-  const response = await get<PetsResponse>(`/pets?clientId=${clientId}`)
+  const response = await get<PetsResponse>('/pets?clientId=' + clientId)
   return response.pets
 }
 
@@ -53,10 +53,10 @@ export async function createPet(data: CreatePetPayload): Promise<Pet> {
 }
 
 export async function updatePet(id: string, data: UpdatePetPayload): Promise<Pet> {
-  const response = await put<PetResponse>(`/pets/${id}`, data)
+  const response = await put<PetResponse>('/pets/' + id, data)
   return response.pet
 }
 
 export async function deletePet(id: string): Promise<void> {
-  return del(`/pets/${id}`)
+  return del('/pets/' + id)
 }

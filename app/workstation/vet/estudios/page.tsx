@@ -9,15 +9,15 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Search, Plus, Phone, Mail, User } from 'lucide-react'
 
-export default function ClientSearchPage() {
+export default function VetEstudiosPage() {
   const [searchTerm, setSearchTerm] = useState('')
 
-  const { data: allClients, isLoading } = useQuery({
+  const { data: allclients, isLoading } = useQuery({
     queryKey: ['clients'],
     queryFn: () => getClients(),
   })
 
-  const filteredClients = allClients?.filter(client => {
+  const filteredclients = allclients?.filter(client => {
     const term = searchTerm.toLowerCase()
     return (
       client.name.toLowerCase().includes(term) ||
@@ -30,9 +30,9 @@ export default function ClientSearchPage() {
   return (
     <div className='space-y-6'>
       <div className='flex items-center justify-between'>
-        <h1 className='text-2xl font-bold'>Buscar Cliente</h1>
-        <Link href='/workstation/user/clientes/nuevo'>
-          <Button><Plus className='h-4 w-4 mr-2' />Nuevo Cliente</Button>
+        <h1 className='text-2xl font-bold'>Buscar Estudio</h1>
+        <Link href='/workstation/user/Pacientes/nuevo'>
+          <Button><Plus className='h-4 w-4 mr-2' />Nuevo Paciente</Button>
         </Link>
       </div>
 
@@ -54,25 +54,25 @@ export default function ClientSearchPage() {
         <p className='text-center text-gray-500 py-8'>Buscando...</p>
       ) : searchTerm.length === 0 ? (
         <p className='text-center text-gray-500 py-8'>Ingrese un termino de busqueda</p>
-      ) : filteredClients.length === 0 ? (
+      ) : filteredclients.length === 0 ? (
         <Card>
           <CardContent className='text-center py-12'>
-            <p className='text-gray-500 mb-4'>No se encontraron clientes</p>
-            <Link href='/workstation/user/clientes/nuevo'>
-              <Button variant='outline' className='mt-4'><Plus className='h-4 w-4 mr-2' />Crear Cliente</Button>
+            <p className='text-gray-500 mb-4'>No se encontraron Pacientes</p>
+            <Link href='/workstation/user/Pacientes/nuevo'>
+              <Button variant='outline' className='mt-4'><Plus className='h-4 w-4 mr-2' />Crear Paciente</Button>
             </Link>
           </CardContent>
         </Card>
       ) : (
         <div className='space-y-2'>
-          <p className='text-sm text-gray-500'>{filteredClients.length} resultado{filteredClients.length !== 1 ? 's' : ''}</p>
+          <p className='text-sm text-gray-500'>{filteredclients.length} resultado{filteredclients.length !== 1 ? 's' : ''}</p>
           <Card>
             <CardContent className='p-0'>
               <div className='divide-y'>
-                {filteredClients.map((client) => (
+                {filteredclients.map((client) => (
                   <Link
                     key={client.id}
-                    href={'/workstation/user/clientes/' + client.id}
+                    href={'/workstation/user/Pacientes/' + client.id}
                     className='flex items-center justify-between p-4 hover:bg-gray-50 transition-colors'
                   >
                     <div className='flex items-center gap-4'>
@@ -87,7 +87,7 @@ export default function ClientSearchPage() {
                         </div>
                       </div>
                     </div>
-                    <span className='text-gray-400'>→</span>
+                    <span className='text-gray-400'>â†’</span>
                   </Link>
                 ))}
               </div>
