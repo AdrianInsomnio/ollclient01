@@ -1,32 +1,25 @@
 ﻿'use client'
 
+import { AlertTriangle } from 'lucide-react'
+
 export default function SuperAdminSubscriptionsPage() {
   return (
     <div className='space-y-6'>
-      <h2 className='text-2xl font-bold'>Suscripciones</h2>
-      <p className='text-gray-600'>Gestiona las suscripciones de las clinicas</p>
-      
-      <div className='bg-white rounded-lg shadow-sm border overflow-hidden'>
-        <table className='min-w-full divide-y divide-gray-200'>
-          <thead className='bg-gray-50'>
-            <tr>
-              <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>Clinica</th>
-              <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>Plan</th>
-              <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>Inicio</th>
-              <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>Vencimiento</th>
-              <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>Estado</th>
-            </tr>
-          </thead>
-          <tbody className='bg-white divide-y divide-gray-200'>
-            <tr>
-              <td className='px-6 py-4 whitespace-nowrap'>No hay suscripciones</td>
-              <td className='px-6 py-4 whitespace-nowrap'>-</td>
-              <td className='px-6 py-4 whitespace-nowrap'>-</td>
-              <td className='px-6 py-4 whitespace-nowrap'>-</td>
-              <td className='px-6 py-4 whitespace-nowrap'>-</td>
-            </tr>
-          </tbody>
-        </table>
+      <div>
+        <h2 className='text-2xl font-bold'>Suscripciones</h2>
+        <p className='text-gray-600'>Gestiona las suscripciones de las clinicas</p>
+      </div>
+
+      <div className='bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-4 flex gap-3'>
+        <AlertTriangle className='h-5 w-5 flex-shrink-0 mt-0.5' />
+        <div>
+          <p className='font-semibold'>Funcionalidad no implementada</p>
+          <p className='text-sm'>
+            La gestion de suscripciones requiere los modelos <code>Plan</code> y
+            <code> Subscription</code> en Prisma, que no existen en esta version.
+            Se entregara en una fase posterior.
+          </p>
+        </div>
       </div>
     </div>
   )

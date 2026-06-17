@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { createPet, type CreatePetPayload, type Pet } from '@/lib/api/pets'
+import { createPet, updatePet, type CreatePetPayload, type Pet } from '@/lib/api/pets'
 
 interface PetFormProps {
   pet?: Pet
@@ -44,11 +44,19 @@ export function PetForm({ pet, clientId: initialClientId, onSuccess }: PetFormPr
     }
 
     try {
-      await createPet(formData)
-      // Invalidar cache de mascotas para actualizar la lista
+      if (pet) {
+        await updatePet(pet.id, formData)
+      } else {
+        await createPet(formData)
+      }
       queryClient.invalidateQueries({ queryKey: ['pets'] })
+      queryClient.invalidateQueries({ queryKey: ['pets', formData.clientId] })
+      queryClient.invalidateQueries({ queryKey: ['client', String(formData.clientId)] })
+      queryClient.invalidateQueries({ queryKey: ['clientHistory', String(formData.clientId)] })
       if (onSuccess) {
         onSuccess()
+      } else if (!pet && formData.clientId) {
+        router.push('/workstation/user/clientes/' + formData.clientId)
       } else {
         router.push('/workstation/user/mascotas')
       }
@@ -103,7 +111,7 @@ export function PetForm({ pet, clientId: initialClientId, onSuccess }: PetFormPr
               <label htmlFor='breed' className='text-sm font-medium'>Raza</label>
               <Input
                 id='breed'
-                value={formData.breed}
+                value={formData.breed || ''}
                 onChange={(e) => handleChange('breed', e.target.value)}
                 placeholder='Labrador, Siames, etc.'
               />

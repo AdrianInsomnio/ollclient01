@@ -25,7 +25,7 @@ export default function LoginPage() {
     try {
       const orgId = organizationId ? parseInt(organizationId) : 0
       const response = await login({ email, password, organizationId: orgId })
-      authLogin(response.token, response.user)
+      authLogin(response.token ?? null, response.user)
 
       // Router según rol
       const roleRoutes: Record<string, string> = {

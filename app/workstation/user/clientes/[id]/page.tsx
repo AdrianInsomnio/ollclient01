@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { getClient, getClientHistory } from '@/lib/api/clients'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Phone, Mail, MapPin, User, PawPrint } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, MapPin, User, PawPrint, Edit } from 'lucide-react'
 
 export default function ClientDetailPage() {
   const params = useParams()
@@ -41,13 +41,16 @@ export default function ClientDetailPage() {
 
   return (
     <div className='space-y-6'>
-      <Link href='/workstation/user/clientes' className='inline-flex'>
-        <Button variant='ghost' size='sm'><ArrowLeft className='h-4 w-4 mr-2' />Volver</Button>
-      </Link>
-
       <div className='flex items-center justify-between'>
-        <h1 className='text-2xl font-bold'>{client.name}</h1>
+        <Link href='/workstation/user/clientes' className='inline-flex'>
+          <Button variant='ghost' size='sm'><ArrowLeft className='h-4 w-4 mr-2' />Volver</Button>
+        </Link>
+        <Link href={'/workstation/user/clientes/editar/' + clientId}>
+          <Button size='sm'><Edit className='h-4 w-4 mr-2' />Editar</Button>
+        </Link>
       </div>
+
+      <h1 className='text-2xl font-bold'>{client.name}</h1>
 
       <div className='grid gap-6 md:grid-cols-2'>
         <Card>
@@ -118,4 +121,3 @@ export default function ClientDetailPage() {
     </div>
   )
 }
-

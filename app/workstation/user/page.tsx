@@ -42,8 +42,8 @@ export default function UserHomePage() {
 
   const filteredClients = allClients?.filter(client => 
     client.name.toLowerCase().includes(search.toLowerCase()) ||
-    client.phone.includes(search) ||
-    client.email.toLowerCase().includes(search.toLowerCase())
+    client.phone?.includes(search) ||
+    client.email?.toLowerCase().includes(search.toLowerCase())
   ).slice(0, 5) || []
 
   const recentClients = allClients?.slice(0, 5) || []
@@ -52,12 +52,12 @@ export default function UserHomePage() {
   const totalClients = allClients?.length || 0
   const totalPets = allPets?.length || 0
   const todayAppointments = appointments?.length || 0
-  const scheduledAppointments = appointments?.filter(a => a.status === 'scheduled').length || 0
+  const scheduledAppointments = appointments?.filter(a => a.status === 'pending').length || 0
   const completedAppointments = appointments?.filter(a => a.status === 'completed').length || 0
 
   const getStatusClass = (status: string) => {
     switch(status) {
-      case 'scheduled': return 'bg-yellow-100 text-yellow-800'
+      case 'pending': return 'bg-yellow-100 text-yellow-800'
       case 'confirmed': return 'bg-blue-100 text-blue-800'
       case 'completed': return 'bg-green-100 text-green-800'
       default: return 'bg-gray-100 text-gray-800'
@@ -126,7 +126,7 @@ export default function UserHomePage() {
                 <UserPlus className='h-6 w-6' /><span className='text-sm'>Nuevo Cliente</span>
               </Button>
             </Link>
-            <Link href='/workstation/user/mascotas/nueva'>
+            <Link href='/workstation/user/mascotas/nuevo'>
               <Button variant='outline' className='w-full h-20 flex flex-col gap-2'>
                 <PlusCircle className='h-6 w-6' /><span className='text-sm'>Nueva Mascota</span>
               </Button>
@@ -180,7 +180,10 @@ export default function UserHomePage() {
               <ul className='divide-y max-h-60 overflow-y-auto'>
                 {appointments?.slice(0, 5).map((apt) => (
                   <li key={apt.id} className='py-3 flex justify-between items-center'>
-                    <div><p className='font-medium'>{apt.time}</p><p className='text-sm text-gray-500'>{apt.type}</p></div>
+                    <div>
+                      <p className='font-medium'>{new Date(apt.date).toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className='text-sm text-gray-500'>{apt.serviceType || 'consulta'}</p>
+                    </div>
                     <span className={'text-xs px-2 py-1 rounded-full ' + getStatusClass(apt.status)}>{apt.status}</span>
                   </li>
                 ))}

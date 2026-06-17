@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { getPet } from '@/lib/api/pets'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, PawPrint, Scale } from 'lucide-react'
+import { ArrowLeft, PawPrint, Scale, Edit } from 'lucide-react'
 
 export default function PetDetailPage() {
   const params = useParams()
@@ -35,9 +35,15 @@ export default function PetDetailPage() {
 
   return (
     <div className='space-y-6'>
-      <Link href='/workstation/user/mascotas' className='inline-flex'>
-        <Button variant='ghost' size='sm'><ArrowLeft className='h-4 w-4 mr-2' />Volver</Button>
-      </Link>
+      <div className='flex items-center justify-between'>
+        <Link href='/workstation/user/mascotas' className='inline-flex'>
+          <Button variant='ghost' size='sm'><ArrowLeft className='h-4 w-4 mr-2' />Volver</Button>
+        </Link>
+        <Link href={'/workstation/user/mascotas/editar/' + petId}>
+          <Button size='sm'><Edit className='h-4 w-4 mr-2' />Editar</Button>
+        </Link>
+      </div>
+
       <div className='flex items-center gap-4'>
         <div className='h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center'>
           <PawPrint className='h-8 w-8 text-blue-600' />
@@ -47,6 +53,7 @@ export default function PetDetailPage() {
           <p className='text-gray-500'>{pet.species}</p>
         </div>
       </div>
+
       <div className='grid gap-4 md:grid-cols-3'>
         <Card>
           <CardHeader className='pb-2'>
@@ -66,14 +73,13 @@ export default function PetDetailPage() {
         </Card>
         <Card>
           <CardHeader className='pb-2'>
-            <CardTitle className='text-sm font-medium text-gray-500'>Edad</CardTitle>
+            <CardTitle className='text-sm font-medium text-gray-500'>Peso</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className='font-medium'>{pet.age || 'No especificada'}</p>
+            <p className='font-medium'>{pet.weight ? pet.weight + ' kg' : 'No especificado'}</p>
           </CardContent>
         </Card>
       </div>
     </div>
   )
 }
-

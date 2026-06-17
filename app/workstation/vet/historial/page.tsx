@@ -21,8 +21,8 @@ export default function VetHistorialPage() {
     const term = searchTerm.toLowerCase()
     return (
       client.name.toLowerCase().includes(term) ||
-      client.phone.includes(term) ||
-      client.email.toLowerCase().includes(term) ||
+      client.phone?.includes(term) ||
+      client.email?.toLowerCase().includes(term) ||
       (client.documentId && client.documentId.includes(term))
     )
   }) || []
@@ -31,8 +31,8 @@ export default function VetHistorialPage() {
     <div className='space-y-6'>
       <div className='flex items-center justify-between'>
         <h1 className='text-2xl font-bold'>Buscar Paciente</h1>
-        <Link href='/workstation/user/Pacientes/nuevo'>
-          <Button><Plus className='h-4 w-4 mr-2' />Nuevo Paciente</Button>
+        <Link href='/workstation/user/clientes/nuevo'>
+          <Button><Plus className='h-4 w-4 mr-2' />Nuevo Cliente</Button>
         </Link>
       </div>
 
@@ -58,8 +58,8 @@ export default function VetHistorialPage() {
         <Card>
           <CardContent className='text-center py-12'>
             <p className='text-gray-500 mb-4'>No se encontraron Pacientes</p>
-            <Link href='/workstation/user/Pacientes/nuevo'>
-              <Button variant='outline' className='mt-4'><Plus className='h-4 w-4 mr-2' />Crear Paciente</Button>
+            <Link href='/workstation/user/clientes/nuevo'>
+              <Button variant='outline' className='mt-4'><Plus className='h-4 w-4 mr-2' />Crear Cliente</Button>
             </Link>
           </CardContent>
         </Card>
@@ -72,7 +72,7 @@ export default function VetHistorialPage() {
                 {filteredclients.map((client) => (
                   <Link
                     key={client.id}
-                    href={'/workstation/user/Pacientes/' + client.id}
+                    href={'/workstation/user/clientes/' + client.id}
                     className='flex items-center justify-between p-4 hover:bg-gray-50 transition-colors'
                   >
                     <div className='flex items-center gap-4'>
@@ -87,7 +87,7 @@ export default function VetHistorialPage() {
                         </div>
                       </div>
                     </div>
-                    <span className='text-gray-400'>â†’</span>
+                    <span className='text-gray-400'>→</span>
                   </Link>
                 ))}
               </div>

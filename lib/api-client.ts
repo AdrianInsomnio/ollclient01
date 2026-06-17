@@ -1,4 +1,6 @@
+
 import { useAuthStore } from './auth-store'
+import { AUTH_VIA_COOKIE } from './auth-config'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -17,6 +19,7 @@ interface RequestConfig extends RequestInit {
   retries?: number
   retryDelay?: number
   timeout?: number
+  idempotencyKey?: string
 }
 
 async function request<T>(
@@ -27,15 +30,31 @@ async function request<T>(
     retries = 1,
     retryDelay = 1000,
     timeout = 30000,
+    idempotencyKey,
     ...fetchConfig
   } = config
 
   const authStore = useAuthStore.getState()
+
+  // En modo cookie NO enviamos Authorization: el token viaja en la cookie
+  // HttpOnly que el navegador incluye automaticamente. credentials: 'include'
+  // es obligatorio en fetch cross-origin para que el cookie viaje.
+  // En modo header seguimos mandando Bearer como antes.
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
-    ...(authStore.token && { Authorization: `Bearer ${authStore.token}` }),
+    ...(!AUTH_VIA_COOKIE && authStore.token && { Authorization: \Bearer \\ }),
     ...(authStore.tenantId && { 'x-tenant-id': authStore.tenantId }),
+    ...(idempotencyKey && { 'Idempotency-Key': idempotencyKey }),
     ...fetchConfig.headers,
+  }
+
+  const fetchInit: RequestInit = {
+    ...fetchConfig,
+    headers,
+    // credentials: 'include' en same-origin es un no-op, en cross-origin
+    // es necesario para que el navegador envie/reciba cookies. Lo seteamos
+    // siempre que el flag este activo para no depender del entorno.
+    ...(AUTH_VIA_COOKIE ? { credentials: 'include' as RequestCredentials } : {}),
   }
 
   const controller = new AbortController()
@@ -45,9 +64,8 @@ async function request<T>(
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        ...fetchConfig,
-        headers,
+      const response = await fetch(\\, {
+        ...fetchInit,
         signal: controller.signal,
       })
 
@@ -124,3 +142,4 @@ export async function put<T>(endpoint: string, data?: unknown, config?: RequestC
 export async function del<T>(endpoint: string, config?: RequestConfig): Promise<T> {
   return request<T>(endpoint, { ...config, method: 'DELETE' })
 }
+

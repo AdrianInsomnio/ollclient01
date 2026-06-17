@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useAuthStore } from '@/lib/auth-store'
+import { logoutRemote } from '@/lib/api/auth'
 import { useRouter } from 'next/navigation'
 import { LogOut, User } from 'lucide-react'
 
@@ -8,7 +9,10 @@ export function UserNav() {
   const router = useRouter()
   const { user, logout } = useAuthStore()
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // En modo cookie pedimos al backend que limpie la cookie HttpOnly.
+    // Si la red falla, no bloqueamos el logout local.
+    await logoutRemote()
     logout()
     router.push('/login')
   }
@@ -24,7 +28,7 @@ export function UserNav() {
         className='flex items-center gap-2 text-sm text-red-600 hover:text-red-700 transition-colors'
       >
         <LogOut className='w-4 h-4' />
-        <span>Cerrar sesión</span>
+        <span>Cerrar sesiÃ³n</span>
       </button>
     </header>
   )

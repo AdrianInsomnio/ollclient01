@@ -2,29 +2,21 @@
 
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
+import { getOpenConsultations } from '@/lib/api/consultations'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, Clock, Stethoscope, ChevronRight } from 'lucide-react'
 
-interface QueueItem {
-  id: string
-  clientId: string
-  petId: string
-  createdAt: string
-}
-
 export default function ColaPage() {
   const { data: consultations, isLoading } = useQuery({
     queryKey: ['consultations-open'],
-    queryFn: async () => {
-      return [] as QueueItem[]
-    },
+    queryFn: () => getOpenConsultations(),
   })
 
   if (isLoading) {
     return (
       <div className='space-y-6'>
-        <h1 className='text-2xl font-bold'>Cola de Atencion</h1>
+        <h1 className='text-2xl font-bold'>Cola de Atención</h1>
         <p className='text-center text-gray-500 py-8'>Cargando...</p>
       </div>
     )
@@ -59,8 +51,11 @@ export default function ColaPage() {
                       <span className='font-bold text-blue-600'>{index + 1}</span>
                     </div>
                     <div>
-                      <p className='font-medium'>Cliente #{consultation.clientId}</p>
-                      <p className='text-sm text-gray-500'>Mascota #{consultation.petId}</p>
+                      <p className='font-medium'>{consultation.client?.name || `Cliente #${consultation.clientId}`}</p>
+                      <p className='text-sm text-gray-500'>
+                        {consultation.pet?.name || `Mascota #${consultation.petId}`}
+                        {consultation.pet?.species ? ` · ${consultation.pet.species}` : ''}
+                      </p>
                     </div>
                   </div>
                   <ChevronRight className='h-5 w-5 text-gray-400' />
@@ -73,7 +68,7 @@ export default function ColaPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className='flex items-center gap-2'><Stethoscope className='h-5 w-5' />Acciones Rapidas</CardTitle>
+          <CardTitle className='flex items-center gap-2'><Stethoscope className='h-5 w-5' />Acciones Rápidas</CardTitle>
         </CardHeader>
         <CardContent className='grid gap-2 md:grid-cols-2'>
           <Link href='/workstation/user/clientes/buscar'>

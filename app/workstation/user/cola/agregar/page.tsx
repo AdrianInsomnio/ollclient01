@@ -1,11 +1,12 @@
 ﻿'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getClients, type Client } from '@/lib/api/clients'
 import { getPets, type Pet } from '@/lib/api/pets'
+import { openConsultation } from '@/lib/api/consultations'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,7 +17,7 @@ export default function AgregarColaPage() {
   const [searchClient, setSearchClient] = useState('')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [selectedPet, setSelectedPet] = useState<Pet | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const { data: clients } = useQuery({
     queryKey: ['clients'],
@@ -34,12 +35,30 @@ export default function AgregarColaPage() {
     c.phone.includes(searchClient)
   ) || []
 
-  const clientPets = pets?.filter(p => p.clientId === selectedClient?.id) || []
+  const clientPets = pets?.filter(p => p.clientId === Number(selectedClient?.id)) || []
+
+  const openMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedClient || !selectedPet) {
+        throw new Error('Selecciona cliente y mascota')
+      }
+
+      return openConsultation({
+        clientId: Number(selectedClient.id),
+        petId: Number(selectedPet.id),
+      })
+    },
+    onSuccess: (consultation) => {
+      router.push('/workstation/user/consultas/' + consultation.id)
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : 'No se pudo abrir la consulta')
+    },
+  })
 
   const handleOpenConsultation = () => {
-    if (selectedClient && selectedPet) {
-      router.push('/workstation/user/cola')
-    }
+    setError('')
+    openMutation.mutate()
   }
 
   return (
@@ -126,9 +145,12 @@ export default function AgregarColaPage() {
               <p><span className='font-medium'>Cliente:</span> {selectedClient.name}</p>
               <p><span className='font-medium'>Mascota:</span> {selectedPet.name} ({selectedPet.species})</p>
             </div>
+            {error && <p className='text-sm text-red-600'>{error}</p>}
             <div className='flex gap-4'>
               <Button variant='outline' onClick={() => setSelectedPet(null)} className='flex-1'>Atras</Button>
-              <Button onClick={handleOpenConsultation} disabled={loading} className='flex-1'>{loading ? 'Abriendo...' : 'Abrir Consulta'}</Button>
+              <Button onClick={handleOpenConsultation} disabled={openMutation.isPending} className='flex-1'>
+                {openMutation.isPending ? 'Abriendo...' : 'Abrir Consulta'}
+              </Button>
             </div>
           </CardContent>
         </Card>

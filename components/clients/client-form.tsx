@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { createClient, type CreateClientPayload, type Client } from '@/lib/api/clients'
+import { createClient, updateClient, type CreateClientPayload, type Client } from '@/lib/api/clients'
 
 interface ClientFormProps {
   client?: Client
@@ -35,7 +35,7 @@ export function ClientForm({ client, onSuccess }: ClientFormProps) {
     try {
       if (client) {
         // Update existing client
-        // await updateClient(client.id, formData)
+        await updateClient(client.id, formData)
       } else {
         // Create new client
         await createClient(formData)
