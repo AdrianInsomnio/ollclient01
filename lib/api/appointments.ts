@@ -1,27 +1,28 @@
 import { get, post, put, del } from '../api-client'
 
 export interface Appointment {
-  id: string
-  clientId: string
-  petId: string
+  id: number
+  clientId: number
+  petId: number
+  client?: { id: number; name: string }
+  pet?: { id: number; name: string; species: string }
   vetId?: string
   date: string
-  time: string
-  status: 'scheduled' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled'
-  type: 'consultation' | 'vaccination' | 'grooming' | 'surgery' | 'follow-up'
+  duration: number
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled'
+  serviceType?: string
   notes?: string
-  tenantId: string
   createdAt: string
   updatedAt: string
 }
 
 export interface CreateAppointmentPayload {
-  clientId: string
-  petId: string
+  clientId: number
+  petId: number
   vetId?: string
   date: string
-  time: string
-  type: Appointment['type']
+  duration?: number
+  serviceType?: string
   notes?: string
 }
 

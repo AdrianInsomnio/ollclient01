@@ -1,4 +1,4 @@
-import { get, post, put, del } from '../api-client'
+﻿import { get, post, put, del } from '../api-client'
 
 export interface Client {
   id: string
@@ -6,8 +6,7 @@ export interface Client {
   email: string
   phone: string
   address?: string
-  documentType?: string
-  documentNumber?: string
+  documentId?: string
   tenantId: string
   createdAt: string
   updatedAt: string
@@ -18,8 +17,7 @@ export interface CreateClientPayload {
   email: string
   phone: string
   address?: string
-  documentType?: string
-  documentNumber?: string
+  documentId?: string
 }
 
 export type UpdateClientPayload = Partial<CreateClientPayload>
@@ -66,7 +64,7 @@ export async function getClients(): Promise<Client[]> {
 }
 
 export async function getClient(id: string): Promise<Client> {
-  const response = await get<ClientResponse>(`/clients/${id}`)
+  const response = await get<ClientResponse>('/clients/' + id)
   return response.client
 }
 
@@ -76,15 +74,15 @@ export async function createClient(data: CreateClientPayload): Promise<Client> {
 }
 
 export async function updateClient(id: string, data: UpdateClientPayload): Promise<Client> {
-  const response = await put<ClientResponse>(`/clients/${id}`, data)
+  const response = await put<ClientResponse>('/clients/' + id, data)
   return response.client
 }
 
 export async function deleteClient(id: string): Promise<void> {
-  return del(`/clients/${id}`)
+  return del('/clients/' + id)
 }
 
 export async function getClientHistory(id: string): Promise<ClientHistory> {
-  const response = await get<ClientHistoryResponse>(`/clients/${id}/history`)
+  const response = await get<ClientHistoryResponse>('/clients/' + id + '/history')
   return response.history
 }

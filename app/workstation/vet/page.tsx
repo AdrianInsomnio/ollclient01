@@ -14,7 +14,7 @@ export default function VetHomePage() {
   })
 
   const todayAppointments = appointments?.filter(
-    (a) => a.status === 'scheduled' || a.status === 'confirmed'
+    (a) => a.status === 'pending' || a.status === 'confirmed'
   ) || []
 
   return (
@@ -57,8 +57,10 @@ export default function VetHomePage() {
                   className="flex items-center justify-between p-4 border rounded-lg"
                 >
                   <div>
-                    <p className="font-medium">{apt.time} - {apt.type}</p>
-                    <p className="text-sm text-gray-500">Paciente ID: {apt.petId}</p>
+                    <p className="font-medium">
+                      {new Date(apt.date).toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' })} - {apt.serviceType || 'consulta'}
+                    </p>
+                    <p className="text-sm text-gray-500">{apt.pet?.name || `Paciente ID: ${apt.petId}`}</p>
                   </div>
                   <Button>Iniciar Consulta</Button>
                 </div>
