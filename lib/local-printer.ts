@@ -137,3 +137,53 @@ export async function printConsultationTicket(payload: ConsultationPrintPayload)
     throw new Error(error.message || error.error || 'No se pudo imprimir el ticket')
   }
 }
+import type { Sale } from '@/lib/api/sales'
+
+export function createSalePrintPayload(sale: Sale): ConsultationPrintPayload {
+  return {
+    clinic: {
+      name: CLINIC_NAME,
+    },
+    client: {
+      name: sale.client?.name ?? `Cliente #${sale.clientId}`,
+      documentId: sale.client?.documentId,
+      phone: sale.client?.phone,
+    },
+    pet: sale.pet ? {
+      name: sale.pet.name ?? `Mascota #${sale.petId}`,
+      species: undefined,
+      breed: undefined,
+    } : {
+      name: 'Sin mascota',
+      species: undefined,
+      breed: undefined,
+    },
+    consultation: {
+      id: sale.id,
+      createdAt: sale.createdAt,
+      closedAt: null,
+    },
+    items: sale.items.map(item => ({
+      description: item.nameSnapshot ?? item.description ?? 'Item',
+      quantity: item.quantity,
+      unitPrice: item.priceSnapshot,
+      total: item.subtotal,
+    })),
+    subtotal: sale.subtotal,
+    tax: sale.tax,
+    total: sale.total,
+    payments: [{
+      method: sale.paymentMethod ?? 'efectivo',
+      amount: sale.total,
+    }],
+    number: sale.id,
+    footer: {
+      message: 'Gracias por su visita',
+    },
+  };
+}
+
+export async function printSaleTicket(sale: Sale): Promise<void> {
+  const payload = createSalePrintPayload(sale);
+  await printConsultationTicket(payload);
+}

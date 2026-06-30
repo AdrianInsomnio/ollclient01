@@ -42,7 +42,7 @@ async function request<T>(
   // En modo header seguimos mandando Bearer como antes.
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
-    ...(!AUTH_VIA_COOKIE && authStore.token && { Authorization: \Bearer \\ }),
+    ...(!AUTH_VIA_COOKIE && authStore.token && { Authorization: `Bearer ${authStore.token}` }),
     ...(authStore.tenantId && { 'x-tenant-id': authStore.tenantId }),
     ...(idempotencyKey && { 'Idempotency-Key': idempotencyKey }),
     ...fetchConfig.headers,
@@ -64,7 +64,7 @@ async function request<T>(
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(\\, {
+      const response = await fetch(`${API_URL}${endpoint}`, {
         ...fetchInit,
         signal: controller.signal,
       })

@@ -11,7 +11,7 @@ export default function SuperAdminSettingsPage() {
       </div>
 
       <div className='bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-4 flex gap-3'>
-        <AlertTriangle className='h-5 w-5 flex-shrink-0 mt-0.5' />
+        <AlertTriangle className='h-5 w-5 shrink-0 mt-0.5' />
         <div>
           <p className='font-semibold'>Funcionalidad no implementada</p>
           <p className='text-sm'>
