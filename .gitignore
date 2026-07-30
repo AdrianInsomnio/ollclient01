@@ -39,3 +39,23 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Stale backups and obsolete artifacts (T1 cleanup)
+*.bak
+*.backup
+*.backup2
+*.tmp
+*.tmp1
+*.original
+*.copy
+*.prisa
+*.xaml
+/app/workstation_v1/
+/app/workstation/superadmin/metrics/
+/app/login/page.tsx.backup
+/app/login/page.tsx.backup2
+app/workstation/user/citas/page.tsx.bak
+lib/api/auth.ts.bak
+lib/auth-store.ts.original
+lib/auth-store.ts.tmp1
+
