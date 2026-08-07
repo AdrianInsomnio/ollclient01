@@ -1,61 +1,113 @@
-﻿import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { getAppointments } from "@/lib/api/appointments";
+﻿"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAppointments, deleteAppointment } from "@/lib/api/appointments";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Plus, Trash2, CheckCircle, XCircle } from "lucide-react";
+import { Calendar, Plus, Trash2 } from "lucide-react";
 
 export default function CitasPage() {
+  const queryClient = useQueryClient();
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const { data: appointments, isLoading } = useQuery({
     queryKey: ["appointments"],
     queryFn: () => getAppointments(),
   });
 
-  if (isLoading) return <p className="text-center text-gray-500 py-8">Cargando...</p>;
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteAppointment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+    },
+    onError: (err: any) => {
+      setActionError(
+        err?.response?.data?.message ?? err?.message ?? "No se pudo eliminar la cita",
+      );
+    },
+    onSettled: () => {
+      setPendingDeleteId(null);
+    },
+  });
+
+  const handleConfirmDelete = (id: string) => {
+    setActionError(null);
+    setPendingDeleteId(id);
+    deleteMutation.mutate(id);
+  };
+
+  if (isLoading) {
+    return <p className="text-center text-gray-500 py-8">Cargando...</p>;
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Citas</h1>
         <Link href="/workstation/user/citas/nuevo">
-          <Button><Plus className="h-4 w-4 mr-2" />Nueva Cita</Button>
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Nueva Cita
+          </Button>
         </Link>
       </div>
 
-      {appointments?.length === 0 ? (
+      {actionError ? (
+        <div className="p-3 rounded bg-red-50 text-red-700 text-sm">{actionError}</div>
+      ) : null}
+
+      {appointments && appointments.length === 0 ? (
         <p className="text-center text-gray-500 py-8">No hay citas programadas</p>
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" />Próximas Citas</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Próximas Citas
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="divide-y">
-              {appointments.map((appt) => (
-                <Link
+              {appointments?.map((appt) => (
+                <div
                   key={appt.id}
-                  href={`/workstation/user/citas/${appt.id}`}
                   className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
                 >
-                  <div className="flex items-center gap-4">
+                  <Link
+                    href={`/workstation/user/citas/${appt.id}`}
+                    className="flex items-center gap-4 flex-1"
+                  >
                     <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span className="font-bold text-blue-600">{new Date(appt.date).toLocaleDateString("es-UY")}</span>
+                      <span className="font-bold text-blue-600">
+                        {new Date(appt.date).toLocaleDateString("es-UY")}
+                      </span>
                     </div>
                     <div>
-                      <p className="font-medium">{appt.client?.name ?? `Cliente #${appt.clientId}`}</p>
+                      <p className="font-medium">
+                        {appt.client?.name ?? `Cliente #${appt.clientId}`}
+                      </p>
                       <p className="text-sm text-gray-500">
-                        {appt.pet?.name ?? `Mascota #${appt.petId}`} {appt.pet?.species ? `(${appt.pet.species})` : ""}
+                        {appt.pet?.name ?? `Mascota #${appt.petId}`}{" "}
+                        {appt.pet?.species ? `(${appt.pet.species})` : ""}
                       </p>
                       <p className="text-sm text-gray-500">
                         {appt.date.slice(11, 16)} - {appt.duration} min
                       </p>
-                      {appt.serviceType && <span className="bg-gray-200 text-xs px-2 py-1 rounded">{appt.serviceType}</span>}
+                      {appt.serviceType ? (
+                        <span className="bg-gray-200 text-xs px-2 py-1 rounded">
+                          {appt.serviceType}
+                        </span>
+                      ) : null}
                     </div>
-                  </div>
+                  </Link>
                   <div className="flex items-center gap-2">
                     <span
-                      className={`px-2 py-0.5 text-xs rounded-full ${
-                        appt.status === "confirmed"
+                      className={
+                        "px-2 py-0.5 text-xs rounded-full " +
+                        (appt.status === "confirmed"
                           ? "bg-green-100 text-green-800"
                           : appt.status === "pending"
                           ? "bg-yellow-100 text-yellow-800"
@@ -63,20 +115,30 @@ export default function CitasPage() {
                           ? "bg-blue-100 text-blue-800"
                           : appt.status === "cancelled"
                           ? "bg-red-100 text-red-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
+                          : "bg-gray-100 text-gray-800")
+                      }
                     >
                       {appt.status}
                     </span>
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => { /* TODO: implement delete */ }}
+                      disabled={deleteMutation.isPending && pendingDeleteId === String(appt.id)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const ok = window.confirm(
+                          "¿Eliminar esta cita? Esta acción no se puede deshacer.",
+                        );
+                        if (ok) {
+                          handleConfirmDelete(String(appt.id));
+                        }
+                      }}
                     >
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           </CardContent>

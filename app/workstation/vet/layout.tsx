@@ -12,15 +12,16 @@ export default function VetLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const { user, isAuthenticated } = useAuthStore()
+  const { user, isAuthenticated, checking } = useAuthStore()
 
   useEffect(() => {
+    if (checking) return
     if (!isAuthenticated || user?.role !== 'VET') {
-      router.push('/login')
+      router.replace('/login')
     }
-  }, [user, isAuthenticated, router])
+  }, [user, isAuthenticated, checking, router])
 
-  if (!isAuthenticated || user?.role !== 'VET') {
+  if (checking || !isAuthenticated || user?.role !== 'VET') {
     return null
   }
 

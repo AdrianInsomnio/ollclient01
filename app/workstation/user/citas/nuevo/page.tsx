@@ -1,7 +1,9 @@
-﻿import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+﻿"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createAppointment } from "@/lib/api/appointments";
 import { getClients, type Client } from "@/lib/api/clients";
 import { getPets, type Pet } from "@/lib/api/pets";
@@ -29,11 +31,11 @@ export default function NuevaCitaPage() {
 
   const { data: pets } = useQuery({
     queryKey: ["pets", clientId],
-    queryFn: () => clientId ? getPets() : Promise.resolve([]),
+    queryFn: () => (clientId ? getPets() : Promise.resolve([])),
     enabled: !!clientId,
   });
 
-  const clientPets = pets?.filter(p => p.clientId === Number(clientId)) || [];
+  const clientPets: Pet[] = (pets ?? []).filter((p) => p.clientId === Number(clientId));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,12 +51,9 @@ export default function NuevaCitaPage() {
         notes,
       });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
-      router.push(`/workstation.push(`/workstation}/citas/${appointment.id}();
-    } catch (err) {
-      setError(err instanceof`?); // we need to redirect to detail
       router.push(`/workstation/user/citas/${appointment.id}`);
-    } catch (err) {
-      setError("Error al crear la cita");
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? err?.message ?? "Error al crear la cita");
       console.error(err);
     } finally {
       setLoading(false);
@@ -71,7 +70,7 @@ export default function NuevaCitaPage() {
         <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Volver a Citas</Button>
       </Link>
 
-      <h1 className="text-2xl font-bold text-gray-900>Nueva Cita</h1>
+      <h1 className="text-2xl font-bold text-gray-900">Nueva Cita</h1>
 
       {!clientId ? (
         <Card>
@@ -80,7 +79,7 @@ export default function NuevaCitaPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="max-h-60 overflow-y-auto space-y-2">
-              {clients?.map((client) => (
+              {clients?.map((client: Client) => (
                 <button
                   key={client.id}
                   onClick={() => setClientId(client.id.toString())}
@@ -102,7 +101,7 @@ export default function NuevaCitaPage() {
             <CardTitle className="flex items-center gap-2"><PawPrint className="h-5 w-5" />Seleccionar Mascota</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-gray-500">Cliente: {clients?.find(c => c.id === Number(clientId))?.name ?? ""}</p>
+              <p className="text-sm text-gray-500">Cliente: {clients?.find((c) => String(c.id) === clientId)?.name ?? ""}</p>
             {clientPets.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500 mb-4">No hay mascotas registradas para este cliente</p>
@@ -140,59 +139,24 @@ export default function NuevaCitaPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <label htmlFor="date" className="text-sm font-medium">Fecha *</label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    required
-                  />
+                  <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="duration" className="text-sm font-medium">Duración (min) *</label>
-                  <Input
-                    id="duration"
-                    type="number"
-                    min="15"
-                    step="15"
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                    required
-                    placeholder="30"
-                  />
+                  <Input id="duration" type="number" min={15} step={15} value={duration} onChange={(e) => setDuration(e.target.value)} required placeholder="30" />
                 </div>
               </div>
               <div className="space-y-2">
                 <label htmlFor="serviceType" className="text-sm font-medium">Tipo de servicio</label>
-                <Input
-                  id="serviceType"
-                  value={serviceType}
-                  onChange={(e) => setServiceType(e.target.value)}
-                  placeholder="Consulta general, vacunación, desparasitación..."
-                />
+                <Input id="serviceType" value={serviceType} onChange={(e) => setServiceType(e.target.value)} placeholder="Consulta general, vacunación, desparasitación..." />
               </div>
               <div className="space-y-2">
                 <label htmlFor="notes" className="text-sm font-medium">Notas</label>
-                <textarea
-                  id="notes"
-                  rows={4}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
-                  placeholder="Observaciones adicionales..."
-                />
+                <textarea id="notes" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Observaciones adicionales..." />
               </div>
-              <div className="flex justify-end pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.back()}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? "Guardando..." : "Crear Cita"}
-                </Button>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
+                <Button type="submit" disabled={loading}>{loading ? "Guardando..." : "Crear Cita"}</Button>
               </div>
             </form>
           </CardContent>

@@ -1,12 +1,14 @@
-﻿import { useState } from "react";
+"use client";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getClients, getPets } from "@/lib/api";
+import { getClients } from "@/lib/api/clients";
+import { getPets } from "@/lib/api/pets";
 import { getAppointment, updateAppointment } from "@/lib/api/appointments";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Calendar, User, PawPlus, Check, X } from "lucide-react";
+import { Calendar, Clock, User, PawPrint, Check, X } from "lucide-react";
 
 export default function EditarCitaPage() {
   const router = useRouter();
@@ -41,7 +43,7 @@ export default function EditarCitaPage() {
   });
 
   // Initialize form with appointment data
-  React.useEffect(() => {
+  useEffect(() => {
     if (appointment) {
       setClientId(appointment.clientId.toString());
       setPetId(appointment.petId.toString());
@@ -122,7 +124,7 @@ export default function EditarCitaPage() {
         {clientId && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><PawPlus className="h-5 w-5" />Mascota</CardTitle>
+              <CardTitle className="flex items-center gap-2"><PawPrint className="h-5 w-5" />Mascota</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">

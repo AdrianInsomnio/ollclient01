@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -100,7 +100,8 @@ export default function PetDetailPage() {
               <p className='text-center text-gray-500 py-4'>No hay consultas registradas</p>
             ) : (
               <div className='space-y-4'>
-                {history.consultations.map((consultation) => (
+                {history.consultations.map((consultation) => {
+                  return (
                   <div key={consultation.date} className='border-b pb-4 last:border-b-0'>
                     <div className='flex items-start gap-4'>
                       <div className='flex-shrink-0 h-8 w-8 rounded-bg-blue-100 flex items-center justify-center'>
@@ -115,11 +116,12 @@ export default function PetDetailPage() {
                           <p className='text-xs text-gray-500 mt-1'>Por: {consultation.professional}</p>
                         )}
                       </div>
-                    )}
+                    </div>
                   </div>
-                )}
+                  );
+                })}
               </div>
-          )}
+            )}
           </CardContent>
         </Card>
       )}

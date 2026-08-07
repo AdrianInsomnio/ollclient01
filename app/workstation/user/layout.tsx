@@ -12,15 +12,16 @@ export default function UserLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const { user, isAuthenticated } = useAuthStore()
+  const { user, isAuthenticated, checking } = useAuthStore()
 
   useEffect(() => {
+    if (checking) return
     if (!isAuthenticated || user?.role !== 'USER') {
-      router.push('/login')
+      router.replace('/login')
     }
-  }, [user, isAuthenticated, router])
+  }, [user, isAuthenticated, checking, router])
 
-  if (!isAuthenticated || user?.role !== 'USER') {
+  if (checking || !isAuthenticated || user?.role !== 'USER') {
     return null
   }
 

@@ -1,11 +1,12 @@
-﻿import Link from "next/link";
-import { useRouter } from "next/navigation";
+"use client";
+import Link from "next/link";
+import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAppointment } from "@/lib/api/appointments";
 import { openConsultation } from "@/lib/api/consultations";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, User, PawPrint, Clock, DollarSign, Check, X } from "lucide-react";
+import { ArrowLeft, Calendar, User, PawPrint, Clock, DollarSign, Check, X } from "lucide-react";
 
 export default function CitaDetallePage() {
   const router = useRouter();
@@ -80,7 +81,7 @@ export default function CitaDetallePage() {
                 </div>
                 <div>
                   <p className="font-medium">{cita.client?.name ?? `Cliente #${cita.clientId}`}</p>
-                  <p className="text-sm text-gray-500">{cita.client?.phone ?? ""}</p>
+                  <p className="text-sm text-gray-500">{(cita.client as { phone?: string } | undefined)?.phone ?? ""}</p>
                 </div>
               </div>
               <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800">
@@ -96,7 +97,7 @@ export default function CitaDetallePage() {
                 <div>
                   <p className="font-medium">{cita.pet?.name ?? `Mascota #${cita.petId}`}</p>
                   <p className="text-sm text-gray-500">
-                    {cita.pet?.species ?? ""} {cita.pet?.breed ? `- ${cita.pet.breed}` : ""}
+                    {cita.pet?.species ?? ""} {((cita.pet as { breed?: string } | undefined)?.breed) ? `- ${(cita.pet as { breed?: string }).breed}` : ""}
                   </p>
                 </div>
               </div>
