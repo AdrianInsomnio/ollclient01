@@ -1,12 +1,13 @@
-﻿'use client'
+'use client'
 
 import { AlertTriangle } from 'lucide-react'
+import { ChangePasswordForm } from '@/components/security/change-password-form'
 
 export default function SuperAdminSettingsPage() {
   return (
     <div className='space-y-6'>
       <div>
-        <h2 className='text-2xl font-bold'>Configuracion Global</h2>
+        <h2 className='text-2xl font-bold'>Configuración Global</h2>
         <p className='text-gray-600'>Ajustes globales del sistema</p>
       </div>
 
@@ -37,6 +38,8 @@ export default function SuperAdminSettingsPage() {
           </div>
         </div>
       </div>
+
+      <ChangePasswordForm />
     </div>
   )
 }

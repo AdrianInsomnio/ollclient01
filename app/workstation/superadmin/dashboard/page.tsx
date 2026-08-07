@@ -120,7 +120,7 @@ export default function SuperAdminDashboardPage() {
   )
 }
 
-export function ClinicsTable({
+function ClinicsTable({
   clinics,
   showInactive = false,
 }: {
