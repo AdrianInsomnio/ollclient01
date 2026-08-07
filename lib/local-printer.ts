@@ -161,10 +161,10 @@ export function createSalePrintPayload(sale: Sale): ConsultationPrintPayload {
     consultation: {
       id: sale.id,
       createdAt: sale.createdAt,
-      closedAt: null,
+      closedAt: undefined,
     },
     items: sale.items.map(item => ({
-      description: item.nameSnapshot ?? item.description ?? 'Item',
+      description: item.nameSnapshot ?? 'Item',
       quantity: item.quantity,
       unitPrice: item.priceSnapshot,
       total: item.subtotal,

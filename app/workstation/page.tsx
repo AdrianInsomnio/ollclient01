@@ -6,11 +6,13 @@ import { useAuthStore } from '@/lib/auth-store'
 
 export default function WorkstationPage() {
   const router = useRouter()
-  const { user, isAuthenticated } = useAuthStore()
+  const { user, isAuthenticated, checking } = useAuthStore()
 
   useEffect(() => {
+    if (checking) return
+
     if (!isAuthenticated || !user) {
-      router.push('/login')
+      router.replace('/login')
       return
     }
 
@@ -21,8 +23,8 @@ export default function WorkstationPage() {
       SUPER_ADMIN: '/workstation/superadmin',
     }
 
-    router.push(roleRoutes[user.role] || '/workstation/user')
-  }, [user, isAuthenticated, router])
+    router.replace(roleRoutes[user.role] || '/workstation/user')
+  }, [user, isAuthenticated, checking, router])
 
   return (
     <div className="min-h-screen flex items-center justify-center">

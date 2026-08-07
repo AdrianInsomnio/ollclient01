@@ -1,8 +1,31 @@
-
 import { useAuthStore } from './auth-store'
 import { AUTH_VIA_COOKIE } from './auth-config'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
+
+type PersistedAuth = {
+  state?: {
+    token?: string | null
+    tenantId?: string | null
+  }
+}
+
+function getAuthSnapshot() {
+  const memory = useAuthStore.getState()
+  if (memory.token || typeof window === 'undefined') return memory
+
+  try {
+    const raw = window.localStorage.getItem('auth-storage')
+    const persisted = raw ? (JSON.parse(raw) as PersistedAuth) : null
+    const token = persisted?.state?.token?.replace(/^Bearer\s+/i, '').trim() || null
+    const tenantId = persisted?.state?.tenantId ?? null
+    if (token || tenantId) return { ...memory, token, tenantId }
+  } catch {
+    // Ignore malformed or unavailable storage; the request will fail normally.
+  }
+
+  return memory
+}
 
 export class ApiError extends Error {
   constructor(
@@ -42,7 +65,7 @@ async function request<T>(
   // En modo header seguimos mandando Bearer como antes.
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
-    ...(!AUTH_VIA_COOKIE && authStore.token && { Authorization: `Bearer ${authStore.token}` }),
+    ...(authStore.token && { Authorization: `Bearer ${authStore.token}` }),
     ...(authStore.tenantId && { 'x-tenant-id': authStore.tenantId }),
     ...(idempotencyKey && { 'Idempotency-Key': idempotencyKey }),
     ...fetchConfig.headers,
@@ -64,6 +87,7 @@ async function request<T>(
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
+        console.log('API request URL:', API_URL + endpoint);
       const response = await fetch(`${API_URL}${endpoint}`, {
         ...fetchInit,
         signal: controller.signal,
@@ -103,7 +127,7 @@ async function request<T>(
       }
 
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new ApiError('TIMEOUT', 'La solicitud tardó demasiado', 408)
+        throw new ApiError('TIMEOUT', 'La solicitud tard?? demasiado', 408)
       }
 
       if (attempt < retries) {
@@ -142,4 +166,5 @@ export async function put<T>(endpoint: string, data?: unknown, config?: RequestC
 export async function del<T>(endpoint: string, config?: RequestConfig): Promise<T> {
   return request<T>(endpoint, { ...config, method: 'DELETE' })
 }
+
 
