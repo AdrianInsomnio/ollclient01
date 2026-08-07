@@ -1,1 +1,69 @@
-import { get, post, put, del } from '../api-client'\n\nexport interface Sale {\n  id: string\n  clientId: string | number\n  petId?: string | number\n  consultationId?: string | number\n  organizationId: number\n  subtotal: number\n  discount: number\n  tax: number\n  total: number\n  status: 'pending' | 'completed' | 'cancelled'\n  paymentMethod?: string\n  items: SaleItem[]\n}\n\nexport interface SaleItem {\n  id: string\n  saleId: string\n  itemType: 'product' | 'service'\n  itemId: number\n  nameSnapshot: string\n  priceSnapshot: number\n  quantity: number\n  subtotal: number\n}\n\nexport interface CreateSalePayload {\n  clientId: string | number\n  petId?: string | number\n  consultationId?: string | number\n  items: Array<{\n    itemType: 'product' | 'service'\n    itemId: number\n    quantity: number\n  }>\n  discount?: number\n  paymentMethod: string\n}\n\n// GET /api/sales\nexport async function getSales() {\n  return await get<Sale[]>('/api/sales')\n}\n\n// GET /api/sales/:id\nexport async function getSaleById(id: string) {\n  return await get<Sale>(/api/sales/)\n}\n\n// POST /api/sales\nexport async function createSale(data: CreateSalePayload) {\n  return await post<Sale>('/api/sales', data)\n}\n\n// PUT /api/sales/:id (maybe for updating status)\nexport async function updateSale(id: string, data: Partial<Sale>) {\n  return await put<Sale>(/api/sales/, data)\n}\n\n// DELETE /api/sales/:id\n// export async function deleteSale(id: string) {\n//   return await del<void>(/api/sales/)\n// }\n
+import { get, post, put, del } from '../api-client'
+
+export interface Sale {
+  id: string
+  clientId: string | number
+  petId?: string | number
+  consultationId?: string | number
+  organizationId: number
+  subtotal: number
+  discount: number
+  tax: number
+  total: number
+  status: 'pending' | 'completed' | 'cancelled'
+  paymentMethod?: string
+  items: SaleItem[]
+  client?: { id: string | number; name: string; documentId?: string; phone?: string }
+  pet?: { id: string | number; name: string }
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface SaleItem {
+  id: string
+  saleId: string
+  itemType: 'product' | 'service'
+  itemId: number
+  nameSnapshot: string
+  priceSnapshot: number
+  quantity: number
+  subtotal: number
+}
+
+export interface CreateSalePayload {
+  clientId: string | number
+  petId?: string | number
+  consultationId?: string | number
+  items: Array<{
+    itemType: 'product' | 'service'
+    itemId: number
+    quantity: number
+  }>
+  discount?: number
+  paymentMethod: string
+}
+
+// GET /api/sales
+export async function getSales() {
+  return await get<Sale[]>('/sales')
+}
+
+// GET /api/sales/:id
+export async function getSaleById(id: string) {
+  return await get<Sale>(`/sales/${id}`)
+}
+
+// POST /api/sales
+export async function createSale(data: CreateSalePayload) {
+  return await post<Sale>('/sales', data)
+}
+
+// PUT /api/sales/:id (status updates, etc.)
+export async function updateSale(id: string, data: Partial<Sale>) {
+  return await put<Sale>(`/sales/${id}`, data)
+}
+
+// DELETE /api/sales/:id
+export async function deleteSale(id: string) {
+  return await del<void>(`/sales/${id}`)
+}

@@ -59,3 +59,15 @@ lib/api/auth.ts.bak
 lib/auth-store.ts.original
 lib/auth-store.ts.tmp1
 
+
+# Runtime logs
+/runtime-frontend.err.log
+/runtime-frontend.out.log
+/runtime-backend.err.log
+/runtime-backend.out.log
+# Scratch / debug / inspection scripts in root
+/gen.js
+/hydration_fix_summary.txt
+/lib/test3.txt
+/lib/auth-store.new.ts
+

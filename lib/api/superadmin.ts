@@ -61,56 +61,54 @@
      FUNCIONES DE LLAMADA
      ------------------------------------------------- */
   export async function getSuperAdminPlans(): Promise<Plan[]> {
-    const resp = await get<PlansResponse>('/api/superadmin/plans')
+    const resp = await get<PlansResponse>('/superadmin/plans')
     return resp.plans
   }
   export async function getSuperAdminPlan(id: number): Promise<Plan> {
-    const resp = await get<PlanResponse>(`/api/superadmin/plans/${id}`)
+    const resp = await get<PlanResponse>(`/superadmin/plans/${id}`)
     return resp.plan
   }
   export async function createSuperAdminPlan(data: CreatePlanPayload):
   Promise<Plan> {
-    const resp = await post<PlanResponse>('/api/superadmin/plans', data)
+    const resp = await post<PlanResponse>('/superadmin/plans', data)
     return resp.plan
   }
   export async function updateSuperAdminPlan(id: number, data:
   UpdatePlanPayload): Promise<Plan> {
-    const resp = await put<PlanResponse>(`/api/superadmin/plans/${id}`, data)
+    const resp = await put<PlanResponse>(`/superadmin/plans/${id}`, data)
     return resp.plan
   }
   export async function deleteSuperAdminPlan(id: number): Promise<void> {
-    return del(`/api/superadmin/plans/${id}`)
+    return del(`/superadmin/plans/${id}`)
   }
 
   export async function getSuperAdminSubscriptions(): Promise<Subscription[]>
   {
-    const resp = await get<SubscriptionsResponse>('/api/superadmin/subscriptions')
+    const resp = await get<SubscriptionsResponse>('/superadmin/subscriptions')
     return resp.subscriptions
   }
   export async function getSuperAdminSubscription(id: number):
   Promise<Subscription> {
-    const resp = await get<SubscriptionResponse>(`/api/superadmin/
-    subscriptions/${id}`)
+    const resp = await get<SubscriptionResponse>(`/superadmin/subscriptions/${id}`)
     return resp.subscription
   }
   export async function createSuperAdminSubscription(data:
   CreateSubscriptionPayload): Promise<Subscription> {
-    const resp = await post<SubscriptionResponse>('/api/superadmin/subscriptions', data)
+    const resp = await post<SubscriptionResponse>('/superadmin/subscriptions', data)
     return resp.subscription
   }
   export async function updateSuperAdminSubscription(id: number, data:
   UpdateSubscriptionPayload): Promise<Subscription> {
-    const resp = await put<SubscriptionResponse>(`/api/superadmin/subscriptions/${id}`, data)
+    const resp = await put<SubscriptionResponse>(`/superadmin/subscriptions/${id}`, data)
     return resp.subscription
   }
   export async function deleteSuperAdminSubscription(id: number):
   Promise<void> {
-    return del(`/api/superadmin/subscriptions/${id}`)
+    return del(`/superadmin/subscriptions/${id}`)
   }
   export async function
   getSuperAdminSubscriptionsByOrganization(organizationId: number):
   Promise<Subscription[]> {
-    const resp = await get<SubscriptionsResponse>(`/api/superadmin/
-    subscriptions/organization/${organizationId}`)
+    const resp = await get<SubscriptionsResponse>(`/superadmin/subscriptions/organization/${organizationId}`)
     return resp.subscriptions
   }

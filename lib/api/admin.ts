@@ -1,4 +1,4 @@
-﻿import { get } from '../api-client'
+import { get, post, put, del } from '../api-client'
 
 export type DashboardScope = 'clinic' | 'organization'
 
@@ -60,7 +60,6 @@ export interface ClinicListResponse {
   organization: {
     id: number
     name: string
-    timezone: string
   }
   clinics: ClinicListItem[]
   generatedAt: string
@@ -78,7 +77,10 @@ export interface UserListItem {
 }
 
 export interface UserListResponse {
-  organization: { id: number; name: string }
+  organization: {
+    id: number
+    name: string
+  }
   users: UserListItem[]
   generatedAt: string
 }
@@ -94,4 +96,71 @@ export async function getAdminClinics(): Promise<ClinicListResponse> {
 
 export async function getAdminUsers(): Promise<UserListResponse> {
   return get<UserListResponse>('/admin/users')
+}
+
+export async function createUser(data: {
+  username: string
+  email: string
+  role: 'USER' | 'VET' | 'ADMIN' | 'SUPER_ADMIN'
+  isActive?: boolean
+}): Promise<{ id: number }> {
+  return post<{ id: number }>('/admin/users', data)
+}
+
+export async function updateUser(id: number, data: Partial<{
+  username: string
+  email: string
+  role: 'USER' | 'VET' | 'ADMIN' | 'SUPER_ADMIN'
+  isActive: boolean
+}>): Promise<void> {
+  return put<void>(`/admin/users/${id}`, data)
+}
+
+export async function deleteUser(id: number): Promise<void> {
+  return del<void>(`/admin/users/${id}`)
+}
+
+export async function createClinic(data: {
+  name: string
+  rut?: string | null
+  website?: string | null
+  imageUrl?: string | null
+  imagePublicId?: string | null
+  imageVersion?: string | null
+  address?: string | null
+  phone?: string | null
+  email?: string | null
+  isDefault?: boolean
+  isActive?: boolean
+  organizationId: number
+}): Promise<{ id: number }> {
+  return post<{ id: number }>('/superadmin/clinics', data)
+}
+
+export async function getClinicsByOrganization(organizationId: number) {
+  const response = await get<{ clinics: Array<Record<string, unknown>> }>(
+    `/superadmin/clinics/organization/${organizationId}`,
+  )
+  return response.clinics
+}
+
+export async function updateClinic(id: number, data: Partial<{
+  name: string
+  rut?: string | null
+  website?: string | null
+  imageUrl?: string | null
+  imagePublicId?: string | null
+  imageVersion?: string | null
+  address?: string | null
+  phone?: string | null
+  email?: string | null
+  isDefault?: boolean
+  isActive?: boolean
+  organizationId: number
+}>): Promise<void> {
+  return put<void>(`/superadmin/clinics/${id}`, data)
+}
+
+export async function deleteClinic(id: number): Promise<void> {
+  return del<void>(`/superadmin/clinics/${id}`)
 }

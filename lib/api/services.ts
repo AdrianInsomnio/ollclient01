@@ -1,1 +1,35 @@
-import { get, post } from '../api-client'\n\nexport interface Service {\n  id: number\n  name: string\n  description?: string\n  price: number\n  duration?: number // minutes\n  isActive: boolean\n}\n\nexport interface ServiceFilters {\n  search?: string\n  isActive?: boolean\n}\n\n// GET /api/services\nexport async function getServices(filters?: ServiceFilters) {\n  let query = ''\n  if (filters) {\n    const params = new URLSearchParams()\n    if (filters.search) params.append('search', filters.search)\n    if (filters.isActive !== undefined) params.append('isActive', String(filters.isActive))\n    if (params.toString()) query = '?' + params.toString()\n  }\n  return await get<Service[]>(/api/services)\n}\n\n// GET /api/services/:id\nexport async function getServiceById(id: number) {\n  return await get<Service>(/api/services/)\n}\n\n// POST /api/services (create)\nexport async function createService(data: Partial<Service>) {\n  return await post<Service>('/api/services', data)\n}\n
+import { get, post } from '../api-client'
+
+export interface Service {
+  id: number
+  name: string
+  description?: string
+  price: number
+  duration?: number
+  isActive: boolean
+}
+
+export interface ServiceFilters {
+  search?: string
+  isActive?: boolean
+}
+
+export async function getServices(filters?: ServiceFilters) {
+  let query = ''
+  if (filters) {
+    const params = new URLSearchParams()
+    if (filters.search) params.append('search', filters.search)
+    if (filters.isActive !== undefined) params.append('isActive', String(filters.isActive))
+    if (params.toString()) query = '?' + params.toString()
+  }
+
+  return await get<Service[]>(`/services${query}`)
+}
+
+export async function getServiceById(id: number) {
+  return await get<Service>(`/services/${id}`)
+}
+
+export async function createService(data: Partial<Service>) {
+  return await post<Service>('/services', data)
+}
