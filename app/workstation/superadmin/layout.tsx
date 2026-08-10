@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
 import Sidebar from '@/components/navigation/sidebar-shadcn'
 import { UserNav } from '@/components/navigation/user-nav'
+import { SidebarProvider } from '@/components/ui/sidebar'
 
 export default function SuperAdminLayout({
   children,
@@ -27,13 +28,15 @@ export default function SuperAdminLayout({
   }
 
   return (
-    <div className='min-h-screen flex flex-col md:flex-row'>
-      <Sidebar />
-      <div className='flex-1 flex flex-col'>
-        <UserNav />
-        <main className='flex-1 p-6 bg-gray-50'>{children}</main>
+    <SidebarProvider>
+      <div className='min-h-screen flex flex-col md:flex-row'>
+        <Sidebar />
+        <div className='flex-1 flex flex-col'>
+          <UserNav />
+          <main className='flex-1 p-6 bg-gray-50'>{children}</main>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   )
 }
 
