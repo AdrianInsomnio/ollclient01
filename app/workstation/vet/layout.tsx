@@ -1,9 +1,10 @@
+
 'use client'
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
-import Sidebar from '@/components/navigation/sidebar'
+import Sidebar from '@/components/navigation/sidebar-shadcn'
 import { UserNav } from '@/components/navigation/user-nav'
 
 export default function VetLayout({
@@ -35,3 +36,4 @@ export default function VetLayout({
     </div>
   )
 }
+
