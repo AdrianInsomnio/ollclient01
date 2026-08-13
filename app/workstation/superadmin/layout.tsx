@@ -1,5 +1,4 @@
-
-'use client'
+﻿'use client'
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -33,10 +32,11 @@ export default function SuperAdminLayout({
         <Sidebar />
         <div className='flex-1 flex flex-col'>
           <UserNav />
-          <main className='flex-1 p-6 bg-gray-50'>{children}</main>
+          <main className='flex-1 bg-gray-50'>
+            <div className='max-w-7xl mx-auto w-full p-6'>{children}</div>
+          </main>
         </div>
       </div>
     </SidebarProvider>
   )
 }
-
