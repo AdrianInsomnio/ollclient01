@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { LogOut, Settings2, User } from 'lucide-react'
 import { useAuthStore } from '@/lib/auth-store'
 import { logoutRemote } from '@/lib/api/auth'
+import { SidebarTrigger } from '../ui/sidebar'
 
 export function UserNav() {
   const router = useRouter()
@@ -25,7 +26,9 @@ export function UserNav() {
 
   return (
     <header className='border-b bg-white px-6 py-3 flex justify-between items-center'>
-      <div className='flex items-center gap-2'>
+      <SidebarTrigger/>
+      <div className='flex items-center gap-4'>
+      <div className='flex items-left gap-2'>
         <User className='w-5 h-5 text-gray-500' />
         <span className='text-sm text-gray-600'>{user?.username || 'Usuario'}</span>
       </div>
@@ -44,6 +47,7 @@ export function UserNav() {
           <LogOut className='w-4 h-4' />
           <span>Cerrar sesión</span>
         </button>
+        </div>
       </div>
     </header>
   )
