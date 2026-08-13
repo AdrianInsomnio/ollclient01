@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
 import Sidebar from '@/components/navigation/sidebar-shadcn'
 import { UserNav } from '@/components/navigation/user-nav'
-import { SidebarProvider } from '@/components/ui/sidebar'
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 
 export default function AdminLayout({
   children,
@@ -28,14 +28,16 @@ export default function AdminLayout({
 
   return (
     <SidebarProvider>
-      <div className='min-h-screen flex flex-col md:flex-row'>
+      <div className='group/sidebar-wrapper flex min-h-svh w-full'>
         <Sidebar />
-        <div className='flex-1 flex flex-col'>
-          <UserNav />
-          <main className='flex-1 bg-gray-50'>
-            <div className='max-w-7xl mx-auto w-full p-6'>{children}</div>
-          </main>
-        </div>
+        <SidebarInset>
+          <div className='flex h-screen flex-col'>
+            <UserNav />
+            <main className='flex-1 bg-gray-50 overflow-y-auto'>
+              <div className='max-w-7xl mx-auto w-full p-6'>{children}</div>
+            </main>
+          </div>
+        </SidebarInset>
       </div>
     </SidebarProvider>
   )
