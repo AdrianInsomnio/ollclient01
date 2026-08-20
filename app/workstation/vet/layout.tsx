@@ -1,12 +1,11 @@
+﻿"use client"
 
-'use client'
-
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/lib/auth-store'
-import Sidebar from '@/components/navigation/sidebar-shadcn'
-import { UserNav } from '@/components/navigation/user-nav'
-import { SidebarProvider } from '@/components/ui/sidebar'
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useAuthStore } from "@/lib/auth-store"
+import Sidebar from "@/components/navigation/sidebar-shadcn"
+import { UserNav } from "@/components/navigation/user-nav"
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 
 export default function VetLayout({
   children,
@@ -18,25 +17,28 @@ export default function VetLayout({
 
   useEffect(() => {
     if (checking) return
-    if (!isAuthenticated || user?.role !== 'VET') {
-      router.replace('/login')
+    if (!isAuthenticated || user?.role !== "VET") {
+      router.replace("/login")
     }
   }, [user, isAuthenticated, checking, router])
 
-  if (checking || !isAuthenticated || user?.role !== 'VET') {
+  if (checking || !isAuthenticated || user?.role !== "VET") {
     return null
   }
 
   return (
     <SidebarProvider>
-      <div className='min-h-screen flex flex-col md:flex-row'>
+      <div className="group/sidebar-wrapper flex min-h-svh w-full">
         <Sidebar />
-        <div className='flex-1 flex flex-col'>
-          <UserNav />
-          <main className='flex-1 p-6 bg-gray-50'>{children}</main>
-        </div>
+        <SidebarInset>
+          <div className="flex h-screen flex-col">
+            <UserNav />
+            <main className="flex-1 bg-gray-50 overflow-y-auto">
+              <div className="max-w-7xl mx-auto w-full p-6">{children}</div>
+            </main>
+          </div>
+        </SidebarInset>
       </div>
     </SidebarProvider>
   )
 }
-

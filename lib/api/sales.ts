@@ -38,9 +38,13 @@ export interface CreateSalePayload {
     itemType: 'product' | 'service'
     itemId: number
     quantity: number
+    /** Solo para services: el backend exige snapshot del catalogo. */
+    nameSnapshot?: string
+    priceSnapshot?: number
   }>
   discount?: number
   paymentMethod: string
+  notes?: string
 }
 
 // GET /api/sales

@@ -49,9 +49,13 @@ export default function SuperAdminDashboardPage() {
     )
   }
 
+  // Estado 'ready' - data garantizado por el hook, pero defensa extra
+  if (!state.data) {
+    return <DashboardSkeleton />
+  }
+
   const data = state.data
-  const isOrgScope = data.scope === 'organization'
-  const isEmpty = data.totals.clinicsCount === 0
+  const isEmpty = data.totals?.clinicsCount === 0
 
   if (isEmpty) {
     return (
@@ -75,46 +79,46 @@ export default function SuperAdminDashboardPage() {
       <div>
         <h2 className='text-2xl font-bold'>Dashboard Global</h2>
         <p className='text-gray-600'>
-          Bienvenido, {user?.username} - {data.organization.name}
+          Bienvenido, {user?.username} - {data.organization?.name}
         </p>
         <p className='text-xs text-gray-500'>
-          Zona horaria: {data.organization.timezone} - Ventas del dia calculadas al cierre de la caja.
+          Zona horaria: {data.organization?.timezone} - Ventas del dia calculadas al cierre de la caja.
         </p>
       </div>
 
       <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
         <KpiCard
           title='Clinicas activas'
-          value={String(data.totals.clinicsCount)}
+          value={String(data.totals?.clinicsCount ?? 0)}
           subtitle='En la organizacion'
           color='text-blue-600'
         />
         <KpiCard
           title='Ventas de hoy'
-          value={formatCurrency(data.totals.salesTodayTotal)}
-          subtitle={`${data.totals.salesTodayCount} operaciones`}
+          value={formatCurrency(data.totals?.salesTodayTotal ?? 0)}
+          subtitle={data.totals?.salesTodayCount + ' operaciones'}
           color='text-yellow-600'
         />
         <KpiCard
           title='Consultas abiertas'
-          value={String(data.totals.openConsultations)}
+          value={String(data.totals?.openConsultations ?? 0)}
           subtitle='En curso ahora mismo'
           color='text-indigo-600'
         />
         <KpiCard
           title='Clientes activos'
-          value={String(data.totals.activeClients)}
-          subtitle={`${data.totals.activePets} mascotas activas`}
+          value={String(data.totals?.activeClients ?? 0)}
+          subtitle={data.totals?.activePets + ' mascotas activas'}
           color='text-green-600'
         />
       </div>
 
-      {data.clinics.length > 0 && (
+      {data.clinics?.length > 0 && (
         <ClinicsTable clinics={data.clinics} showInactive={false} />
       )}
 
       <p className='text-xs text-gray-400'>
-        Actualizado: {new Date(data.generatedAt).toLocaleString('es-UY')}
+        Actualizado: {data.generatedAt ? new Date(data.generatedAt).toLocaleString('es-UY') : '—'}
       </p>
     </div>
   )
@@ -127,8 +131,8 @@ function ClinicsTable({
   clinics: ClinicWithMetrics[]
   showInactive?: boolean
 }) {
-  const visible = showInactive ? clinics : clinics.filter(c => c.metrics)
-  if (visible.length === 0) return null
+  const visible = showInactive ? clinics : clinics
+  if (!visible?.length) return null
 
   return (
     <div className='bg-white border rounded-lg overflow-hidden'>
@@ -158,7 +162,7 @@ function ClinicsTable({
                   )}
                 </td>
                 <td className='px-4 py-2 text-right'>
-                  {formatCurrency(c.metrics ? c.metrics.salesToday.total : 0)}
+                  {formatCurrency(c.metrics?.salesToday?.total ?? 0)}
                 </td>
                 <td className='px-4 py-2 text-right'>{c.metrics?.openConsultations ?? 0}</td>
                 <td className='px-4 py-2 text-right'>{c.metrics?.closedConsultationsToday ?? 0}</td>
@@ -187,7 +191,7 @@ function KpiCard({
   return (
     <div className='bg-white p-6 rounded-lg shadow-sm border'>
       <h3 className='text-sm font-medium text-gray-600'>{title}</h3>
-      <p className={`text-3xl font-bold mt-1 ${color}`}>{value}</p>
+      <p className={'text-3xl font-bold mt-1 ' + color}>{value}</p>
       <p className='text-xs text-gray-500 mt-1'>{subtitle}</p>
     </div>
   )
@@ -213,7 +217,6 @@ function DashboardSkeleton() {
   )
 }
 
-// Wrapper para evitar import en modulo 'use client' de algo que rompe el linter.
 import { useAuthStore } from '@/lib/auth-store'
 function useAuthStoreSafe() {
   return useAuthStore()

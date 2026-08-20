@@ -13,7 +13,7 @@
   LucideIcon,
 } from "lucide-react";
 
-import { useAuthStore } from "@/lib/auth-store"; // ajusta la ruta según tu proyecto
+import { useAuthStore } from "@/lib/auth-store";
 
 export interface MenuItem {
   href?: string;
@@ -58,7 +58,7 @@ export const superAdminSidebar: MenuGroup[] = [
       },
       {
         href: "/workstation/superadmin/clinics",
-        label: "Clinicas",
+        label: "Clínicas",
         icon: "Briefcase",
       },
       {
@@ -89,7 +89,7 @@ export const superAdminSidebar: MenuGroup[] = [
       },
       {
         href: "/workstation/superadmin/settings",
-        label: "Configuracion",
+        label: "Configuración",
         icon: "Settings",
       },
     ],
@@ -108,7 +108,7 @@ export const adminSidebar: MenuGroup[] = [
       },
       {
         href: "/workstation/admin/metrics",
-        label: "Metricas",
+        label: "Métricas",
         icon: "LayoutDashboard",
       },
     ],
@@ -175,7 +175,7 @@ export const adminSidebar: MenuGroup[] = [
     ],
   },
   {
-    label: "Configuracion",
+    label: "Configuración",
     icon: "Settings",
     items: [
       {
@@ -189,12 +189,12 @@ export const adminSidebar: MenuGroup[] = [
 
 export const assistantSidebar: MenuGroup[] = [
   {
-    label: "Atencion",
+    label: "Atención",
     icon: "Calendar",
     items: [
       {
         href: "/workstation/user/cola",
-        label: "Cola de Atencion",
+        label: "Cola de Atención",
         icon: "Calendar",
       },
     ],
@@ -219,7 +219,7 @@ export const assistantSidebar: MenuGroup[] = [
     label: "Caja",
     icon: "Wallet",
     items: [
-      { href: "/workstation/cash", label: "Caja del Dia", icon: "Wallet" },
+      { href: "/workstation/cash", label: "Caja del Día", icon: "Wallet" },
     ],
   },
 ];
@@ -242,12 +242,12 @@ export const veterinarianSidebar: MenuGroup[] = [
     ],
   },
   {
-    label: "Historia Clinica",
+    label: "Historia Clínica",
     icon: "FileText",
     items: [
       {
         href: "/workstation/vet/historial",
-        label: "Fichas Medicas",
+        label: "Fichas Médicas",
         icon: "FileText",
       },
       { href: "/workstation/vet/recetas", label: "Recetas", icon: "FileText" },

@@ -16,8 +16,13 @@ export interface ProductFilters {
   isActive?: boolean
 }
 
+export interface ProductsResponse {
+  products: Product[]
+}
+
 // GET /api/products
-export async function getProducts(filters?: ProductFilters) {
+// Tolerante: el backend responde { products: [...] } pero aceptamos tambien un array directo.
+export async function getProducts(filters?: ProductFilters): Promise<Product[]> {
   let query = ''
   if (filters) {
     const params = new URLSearchParams()
@@ -25,7 +30,10 @@ export async function getProducts(filters?: ProductFilters) {
     if (filters.isActive !== undefined) params.append('isActive', String(filters.isActive))
     if (params.toString()) query = '?' + params.toString()
   }
-  return await get<Product[]>(`/products${query}`)
+
+  const response = await get<ProductsResponse | Product[]>(`/products${query}`)
+  if (Array.isArray(response)) return response
+  return response.products ?? []
 }
 
 // GET /api/products/:id

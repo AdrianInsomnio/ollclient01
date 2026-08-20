@@ -1,8 +1,8 @@
-import { create, type StateCreator } from 'zustand'
-import { persist } from 'zustand/middleware'
-import { getProfile, logoutRemote } from './api/auth'
+﻿import { create, type StateCreator } from "zustand"
+import { persist } from "zustand/middleware"
+import { getProfile, logoutRemote } from "./api/auth"
 
-export type UserRole = 'USER' | 'VET' | 'ADMIN' | 'SUPER_ADMIN'
+export type UserRole = "USER" | "VET" | "ADMIN" | "SUPER_ADMIN"
 
 export interface User {
   id: number
@@ -26,10 +26,10 @@ interface AuthState {
   markHydrated: () => void
 }
 
-const AUTH_VIA_COOKIE = process.env.NEXT_PUBLIC_AUTH_VIA_COOKIE === 'true'
+const AUTH_VIA_COOKIE = process.env.NEXT_PUBLIC_AUTH_VIA_COOKIE === "true"
 
 const normalizeToken = (token: string | null | undefined) => {
-  const value = token?.trim().replace(/^Bearer\s+/i, '')
+  const value = token?.trim().replace(/^Bearer\s+/i, "")
   return value || null
 }
 
@@ -62,10 +62,13 @@ const baseStore: StateCreator<AuthState> = (set, get) => ({
   },
   initialize: async () => {
     const state = get()
-    if (!AUTH_VIA_COOKIE && !state.hydrated) return
-    // In header mode, wait for Zustand Persist to hydrate the token. Calling
-    // /users/profile without a token can otherwise race with hydration and
-    // clear a valid session that is being restored or has just logged in.
+    // En modo header, esperar a que Zustand Persist hidrate el token
+    // Llamar a /users/profile sin token puede causar race condition
+    // y limpiar una sesion valida que se esta restaurando o que acaba de loguearse.
+    if (!AUTH_VIA_COOKIE && !state.hydrated) {
+      // Hidratación no completada: no hacer nada, markHydrated llamará a initialize de nuevo
+      return
+    }
     if (!AUTH_VIA_COOKIE && !state.token) {
       set({ checking: false })
       return
@@ -83,18 +86,26 @@ const baseStore: StateCreator<AuthState> = (set, get) => ({
         checking: false,
       })
     } catch (error) {
-      console.warn('Auth initialization failed:', error)
+      console.warn("Auth initialization failed:", error)
       const current = get()
+      // Solo limpiar sesion si el error es 401 (no autorizado)
+      // No limpiar en errores de red u otros errores
+      const isUnauthorized = error instanceof Error && "status" in error && error.status === 401
       if (!AUTH_VIA_COOKIE && current.token !== state.token) {
         return
       }
-      set({
-        token: null,
-        user: null,
-        tenantId: null,
-        isAuthenticated: false,
-        checking: false,
-      })
+      if (isUnauthorized) {
+        set({
+          token: null,
+          user: null,
+          tenantId: null,
+          isAuthenticated: false,
+          checking: false,
+        })
+      } else {
+        // Error de red u otro: mantener el token y usuario, solo marcar checking como false
+        set({ checking: false })
+      }
     }
   },
   markHydrated: () => {
@@ -112,7 +123,7 @@ export const useAuthStore = AUTH_VIA_COOKIE
   ? create<AuthState>()(baseStore)
   : create<AuthState>()(
       persist(baseStore, {
-        name: 'auth-storage',
+        name: "auth-storage",
         partialize: (state) => ({
           token: state.token,
           user: state.user,

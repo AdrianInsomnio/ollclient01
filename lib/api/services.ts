@@ -14,7 +14,12 @@ export interface ServiceFilters {
   isActive?: boolean
 }
 
-export async function getServices(filters?: ServiceFilters) {
+export interface ServicesResponse {
+  services: Service[]
+}
+
+// Tolerante: backend responde { services: [...] } o array directo.
+export async function getServices(filters?: ServiceFilters): Promise<Service[]> {
   let query = ''
   if (filters) {
     const params = new URLSearchParams()
@@ -23,7 +28,9 @@ export async function getServices(filters?: ServiceFilters) {
     if (params.toString()) query = '?' + params.toString()
   }
 
-  return await get<Service[]>(`/services${query}`)
+  const response = await get<ServicesResponse | Service[]>(`/services${query}`)
+  if (Array.isArray(response)) return response
+  return response.services ?? []
 }
 
 export async function getServiceById(id: number) {

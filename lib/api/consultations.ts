@@ -5,6 +5,7 @@ export interface Consultation {
   id: string
   clientId: string | number
   petId: string | number
+  appointmentId?: string | number | null
   client?: {
     id: string | number
     name: string
@@ -78,12 +79,13 @@ export interface CloseConsultationPayload {
   discount?: number
 }
 
+// Campos persistibles como columnas en `Consultation` (ver schema.prisma).
+// `diagnosis` / `treatment` NO son columnas: viven como entradas en las
+// relaciones Diagnosis[] / Treatment[] (ver addDiagnosis / addTreatment).
 export interface UpdateClinicalPayload {
   weight?: number
   temperature?: number
   symptoms?: string
-  diagnosis?: string
-  treatment?: string
   notes?: string
 }
 

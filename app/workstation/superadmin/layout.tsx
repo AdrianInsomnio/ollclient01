@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -34,7 +34,7 @@ export default function SuperAdminLayout({
           <div className='flex h-screen flex-col'>
             <UserNav />
             <main className='flex-1 bg-gray-50 overflow-y-auto'>
-              <div className='max-w-7xl mx-auto w-full p-6'>{children}</div>
+              <div className='w-full p-6'>{children}</div>
             </main>
           </div>
         </SidebarInset>

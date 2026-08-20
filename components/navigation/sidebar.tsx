@@ -33,8 +33,8 @@ export default function Sidebar() {
   const toggleExpand = (label: string) => { setExpandedItems(prev => { const next = new Set(prev); if (next.has(label)) next.delete(label); else next.add(label); return next }) }
   return (
     <aside className="w-64 bg-white border-r h-screen overflow-y-auto">
-      <div className="p-4 border-b">
-        <h2 className="text-lg font-semibold">Menu</h2>
+      <div className="p-4 ">
+        <h2 className="text-lg font-semibold">VetApp</h2>
       </div>
       <nav className="p-2 space-y-1">
         {menuItems.map((group) => {

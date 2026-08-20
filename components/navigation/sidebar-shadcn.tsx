@@ -118,9 +118,9 @@ export default function SidebarShadcn() {
           <div className='flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground'>
             <PanelLeftIcon className='size-5' />
           </div>
-          <span className='text-lg font-semibold'>Menu</span>
+          <span className='text-lg font-semibold'>Vet-app</span>
         </div>
-        <SidebarSeparator />
+       
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

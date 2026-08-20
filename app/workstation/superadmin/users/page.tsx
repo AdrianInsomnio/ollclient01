@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
@@ -31,6 +31,7 @@ import {
   Separator,
 } from '@/components/ui'
 import { useAuthStore } from '@/lib/auth-store'
+import { ApiError } from '@/lib/api-client'
 import {
   getAdminUsers,
   createUser,
@@ -44,6 +45,7 @@ type UserFormData = {
   id?: number
   username: string
   email: string
+  password: string
   role: 'USER' | 'VET' | 'ADMIN' | 'SUPER_ADMIN'
   isActive: boolean
 }
@@ -60,11 +62,12 @@ export default function SuperAdminUsersPage() {
   const [formData, setFormData] = useState<UserFormData>({
     username: '',
     email: '',
+    password: '',
     role: 'USER',
     isActive: true,
   })
 
-  // Role labels and colors (copied from original)
+  // Role labels and colors
   const ROLE_LABELS: Record<UserListItem['role'], string> = {
     USER: 'Asistente',
     VET: 'Veterinario',
@@ -99,16 +102,14 @@ export default function SuperAdminUsersPage() {
     })
   }
 
-  // Fetch users with pagination
+  // Fetch users
   const fetchUsers = useCallback(async () => {
     setLoading(true)
     try {
-      // Note: The current API doesn't support pagination yet
-      // In a real implementation, we would add page and limit parameters
       const response = await getAdminUsers()
       if (response) {
         setUsers(response.users)
-        setTotal(response.users.length) // TODO: Get actual total from API
+        setTotal(response.users.length)
       }
     } catch (error) {
       console.error('Error fetching users:', error)
@@ -118,57 +119,52 @@ export default function SuperAdminUsersPage() {
     }
   }, [])
 
-  // Handle page change
   const handlePageChange = (value: number) => {
     setPage(value)
-    // In a real implementation, we would fetch data for the new page
   }
 
-  // Handle limit change
   const handleLimitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setLimit(Number(e.target.value))
-    setPage(1) // Reset to first page
-    // In a real implementation, we would fetch data with new limit
+    setPage(1)
   }
 
-  // Open create user dialog
   const handleCreateUser = () => {
     setEditingUserId(null)
     setFormData({
       username: '',
       email: '',
+      password: '',
       role: 'USER',
       isActive: true,
     })
     setDialogOpen(true)
   }
 
-  // Open edit user dialog
   const handleEditUser = (user: UserListItem) => {
     setEditingUserId(user.id)
     setFormData({
       id: user.id,
       username: user.username,
       email: user.email,
+      password: '',
       role: user.role,
       isActive: user.isActive,
     })
     setDialogOpen(true)
   }
 
-  // Close dialog
   const handleCloseDialog = () => {
     setDialogOpen(false)
     setEditingUserId(null)
     setFormData({
       username: '',
       email: '',
+      password: '',
       role: 'USER',
       isActive: true,
     })
   }
 
-  // Handle form input changes
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type, checked } = e.target as HTMLInputElement
     setFormData(prev => ({
@@ -183,7 +179,6 @@ export default function SuperAdminUsersPage() {
     setLoading(true)
     
     try {
-      let response
       if (editingUserId) {
         // Update existing user
         await updateUser(editingUserId, {
@@ -191,13 +186,20 @@ export default function SuperAdminUsersPage() {
           email: formData.email,
           role: formData.role,
           isActive: formData.isActive,
+          ...(formData.password && { password: formData.password }),
         })
         toast.success('Usuario actualizado correctamente')
       } else {
-        // Create new user
+        // Create new user - password is required
+        if (!formData.password) {
+          toast.error('La contrase\u00F1a es obligatoria para crear un usuario')
+          setLoading(false)
+          return
+        }
         await createUser({
           username: formData.username,
           email: formData.email,
+          password: formData.password,
           role: formData.role,
           isActive: formData.isActive,
         })
@@ -209,15 +211,22 @@ export default function SuperAdminUsersPage() {
       handleCloseDialog()
     } catch (error) {
       console.error('Error saving user:', error)
-      toast.error('No se pudo guardar el usuario')
+      let errorMessage = 'No se pudo guardar el usuario'
+      
+      if (error instanceof ApiError) {
+        errorMessage = error.code + ': ' + error.message // Show code and message
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
-  // Handle delete user
   const handleDeleteUser = async (id: number) => {
-    if (!window.confirm('�Est�s seguro de eliminar este usuario?')) return
+    if (!window.confirm('\u00BFEst\u00E1s seguro de eliminar este usuario?')) return
     
     setLoading(true)
     try {
@@ -226,18 +235,24 @@ export default function SuperAdminUsersPage() {
       await fetchUsers()
     } catch (error) {
       console.error('Error deleting user:', error)
-      toast.error('No se pudo eliminar el usuario')
+      let errorMessage = 'No se pudo eliminar el usuario'
+      
+      if (error instanceof ApiError) {
+        errorMessage = error.code + ': ' + error.message
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
-  // Load initial data
   useEffect(() => {
     fetchUsers()
   }, [fetchUsers])
 
-  // Recalculate total when users change (in real app, this would come from API)
   useEffect(() => {
     setTotal(users.length)
   }, [users])
@@ -252,7 +267,7 @@ export default function SuperAdminUsersPage() {
             size='sm'
             onClick={() => setLimit(l => Math.min(l + 10, 100))}
           >
-            {limit} por p�gina
+            {limit} por p\u00E1gina
           </Button>
           <Button 
             variant='default' 
@@ -288,9 +303,9 @@ export default function SuperAdminUsersPage() {
           </div>
         ) : users.length === 0 ? (
           <div className='p-8 text-center'>
-            <p className='text-lg font-semibold text-gray-800'>A�n no hay usuarios</p>
+            <p className='text-lg font-semibold text-gray-800'>A\u00FAn no hay usuarios</p>
             <p className='text-sm text-gray-600 mt-1'>
-              Los usuarios se crean desde el registro o el panel de administraci�n.
+              Los usuarios se crean desde el registro o el panel de administraci\u00F3n.
             </p>
           </div>
         ) : (
@@ -302,7 +317,7 @@ export default function SuperAdminUsersPage() {
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>Email</th>
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>Rol</th>
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>Estado</th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>�ltimo acceso</th>
+                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>\u00DAltimo acceso</th>
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>Creado</th>
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase'>Acciones</th>
                 </tr>
@@ -316,7 +331,7 @@ export default function SuperAdminUsersPage() {
                     <td className='px-6 py-4 text-sm text-gray-600'>{user.email}</td>
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${ROLE_COLORS[user.role]}`}
+                        className='inline-flex px-2 py-1 text-xs font-semibold rounded-full '
                       >
                         {ROLE_LABELS[user.role]}
                       </span>
@@ -368,7 +383,7 @@ export default function SuperAdminUsersPage() {
                 >
                   {[10, 25, 50, 100].map(size => (
                     <option key={size} value={size}>
-                      {size} por p�gina
+                      {size} por p\u00E1gina
                     </option>
                   ))}
                 </select>
@@ -386,30 +401,30 @@ export default function SuperAdminUsersPage() {
       {/* User form dialog */}
       <Dialog open={dialogOpen} onOpenChange={open => setDialogOpen(open)}>
         <DialogTrigger asChild>
-          <Button variant="outline" onClick={handleCreateUser}>
+          <Button variant='outline' onClick={handleCreateUser}>
             {editingUserId ? 'Editar Usuario' : 'Nuevo Usuario'}
           </Button>
         </DialogTrigger>
-        <DialogContent className="w-112.5 max-h-[90vh] overflow-y-auto">
+        <DialogContent className='w-112.5 max-h-[90vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>{editingUserId ? 'Editar Usuario' : 'Nuevo Usuario'}</DialogTitle>
             <DialogDescription>
               Completa el formulario para crear o editar un usuario
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className='space-y-6'>
             <Form>
               <FormField>
                 <FormItem>
                   <FormLabel>Nombre de Usuario</FormLabel>
                   <FormControl>
                     <Input 
-                      type="text" 
-                      name="username" 
+                      type='text' 
+                      name='username' 
                       value={formData.username} 
                       onChange={handleFormChange} 
                       required
-                      placeholder="Ingrese el nombre de usuario"
+                      placeholder='Ingrese el nombre de usuario'
                     />
                   </FormControl>
                 </FormItem>
@@ -420,14 +435,37 @@ export default function SuperAdminUsersPage() {
                   <FormLabel>Email</FormLabel>
                   <FormControl>
                     <Input 
-                      type="email" 
-                      name="email" 
+                      type='email' 
+                      name='email' 
                       value={formData.email} 
                       onChange={handleFormChange} 
                       required
-                      placeholder="usuario@ejemplo.com"
+                      placeholder='usuario@ejemplo.com'
                     />
                   </FormControl>
+                </FormItem>
+              </FormField>
+
+              {/* Password field - required for create, optional for edit */}
+              <FormField>
+                <FormItem>
+                  <FormLabel>{editingUserId ? 'Nueva Contrase\u00F1a (opcional)' : 'Contrase\u00F1a *'}</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type='password' 
+                      name='password' 
+                      value={formData.password} 
+                      onChange={handleFormChange} 
+                      required={!editingUserId}
+                      placeholder={editingUserId ? 'Dejar vac\u00EDo para no cambiar' : 'Ingrese la contrase\u00F1a'}
+                    />
+                  </FormControl>
+                  {!editingUserId && (
+                    <p className='text-xs text-gray-500 mt-1'>La contrase\u00F1a es obligatoria para crear un usuario</p>
+                  )}
+                  {editingUserId && (
+                    <p className='text-xs text-gray-500 mt-1'>Dejar vac\u00EDo para mantener la contrase\u00F1a actual</p>
+                  )}
                 </FormItem>
               </FormField>
 
@@ -436,14 +474,14 @@ export default function SuperAdminUsersPage() {
                   <FormLabel>Rol</FormLabel>
                   <FormControl>
                     <Select 
-                      name="role" 
+                      name='role' 
                       value={formData.role} 
                       onChange={handleFormChange}
                     >
-                      <option value="USER">Usuario Est�ndar</option>
-                      <option value="VET">Veterinario</option>
-                      <option value="ADMIN">Administrador</option>
-                      <option value="SUPER_ADMIN">Super Administrador</option>
+                      <option value='USER'>Usuario Est\u00E1ndar</option>
+                      <option value='VET'>Veterinario</option>
+                      <option value='ADMIN'>Administrador</option>
+                      <option value='SUPER_ADMIN'>Super Administrador</option>
                     </Select>
                   </FormControl>
                 </FormItem>
@@ -454,7 +492,7 @@ export default function SuperAdminUsersPage() {
                   <FormLabel>Estado</FormLabel>
                   <FormControl>
                     <Switch 
-                      name="isActive" 
+                      name='isActive' 
                       checked={formData.isActive} 
                       onChange={handleFormChange}
                     />
@@ -463,19 +501,19 @@ export default function SuperAdminUsersPage() {
               </FormField>
             </Form>
 
-            <Separator className="my-4" />
+            <Separator className='my-4' />
 
             <DialogFooter>
               <Button 
-                variant="secondary" 
+                variant='secondary' 
                 onClick={handleCloseDialog}
               >
                 Cancelar
               </Button>
               <Button 
-                type="submit" 
+                type='submit' 
                 disabled={loading}
-                className="w-20"
+                className='w-20'
               >
                 {loading ? 'Guardando...' : 'Guardar'}
               </Button>

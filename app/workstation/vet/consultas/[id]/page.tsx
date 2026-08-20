@@ -1,9 +1,10 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
-import Link from 'next/link'
+import { useEffect, useMemo, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Loader2 } from "lucide-react"
+
 import {
   addDiagnosis,
   addPrescription,
@@ -11,215 +12,442 @@ import {
   getConsultation,
   updateConsultationClinical,
   type UpdateClinicalPayload,
-} from '@/lib/api/consultations'
-import { getPetHistory } from '@/lib/api/pets'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { ArrowLeft, Save, Plus } from 'lucide-react'
+} from "@/lib/api/consultations"
+import { getPetHistory } from "@/lib/api/pets"
+import { getProducts, type Product } from "@/lib/api/products"
+import { getServices, type Service } from "@/lib/api/services"
+import { createSale } from "@/lib/api/sales"
+
+import {
+  computeCartTotal,
+  itemToSalePayload,
+  newCartKey,
+  type CartItem,
+} from "@/lib/workstation/commerce-cart"
+import {
+  getMockSchedule,
+  type ConsultationSchedule,
+} from "@/lib/workstation/schedule.mock"
+import { workspaceToast } from "@/lib/workstation/toast"
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import {
+  AddItemDialog,
+  CommercePanel,
+  ConsultationTabs,
+  MedicalHeader,
+  MobileCheckoutBar,
+  PetClientCard,
+  type PaymentMethodOption,
+} from "@/components/workstation"
+
+const dateFormatter = new Intl.DateTimeFormat("es-UY", {
+  weekday: "short",
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+})
 
 export default function VetConsultationDetailPage() {
-  const params = useParams()
+  const params = useParams<{ id: string }>()
+  const router = useRouter()
   const queryClient = useQueryClient()
-  const consultationId = params.id as string
+  const consultationId = params?.id ?? ""
 
-  const [formData, setFormData] = useState<UpdateClinicalPayload>({})
-  const [diagnosisText, setDiagnosisText] = useState('')
-  const [treatmentText, setTreatmentText] = useState('')
-  const [prescriptionText, setPrescriptionText] = useState('')
-  const [error, setError] = useState('')
-
-  const { data: consultation, isLoading } = useQuery({
-    queryKey: ['consultation', consultationId],
+  // Datos clinicos.
+  const consultationQuery = useQuery({
+    queryKey: ["consultation", consultationId],
     queryFn: () => getConsultation(consultationId),
     enabled: !!consultationId,
   })
 
-  const { data: petHistory } = useQuery({
-    queryKey: ['petHistory', consultation?.petId],
-    queryFn: () => getPetHistory(consultation?.petId || ''),
-    enabled: !!consultation?.petId,
+  const petHistoryQuery = useQuery({
+    queryKey: ["pet-history", consultationQuery.data?.petId],
+    queryFn: () => getPetHistory(String(consultationQuery.data?.petId ?? "")),
+    enabled: !!consultationQuery.data?.petId,
   })
 
+  // Catalogo comercial.
+  const productsQuery = useQuery({
+    queryKey: ["products", "active"],
+    queryFn: () => getProducts({ isActive: true }),
+  })
+
+  const servicesQuery = useQuery({
+    queryKey: ["services", "active"],
+    queryFn: () => getServices({ isActive: true }),
+  })
+
+  // Mock tipado de turno/profesional.
+  const [schedule, setSchedule] = useState<ConsultationSchedule | null>(null)
   useEffect(() => {
-    if (!consultation) return
-    setFormData({
-      weight: consultation.weight,
-      temperature: consultation.temperature,
-      symptoms: consultation.symptoms || '',
-      diagnosis: consultation.diagnosis || '',
-      treatment: consultation.treatment || '',
-      notes: consultation.notes || '',
+    if (!consultationId) return
+    let active = true
+    void getMockSchedule(consultationId).then((s) => {
+      if (active) setSchedule(s)
     })
-  }, [consultation])
+    return () => {
+      active = false
+    }
+  }, [consultationId])
 
-  const saveMutation = useMutation({
-    mutationFn: () => updateConsultationClinical(consultationId, formData),
+  // Estado del carrito comercial.
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [discountPercent, setDiscountPercent] = useState(0)
+  const [saleNotes, setSaleNotes] = useState("")
+  const [paymentMethod, setPaymentMethod] =
+    useState<PaymentMethodOption>("CASH")
+  const [itemDialogOpen, setItemDialogOpen] = useState(false)
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false)
+
+  const consultation = consultationQuery.data
+  const isClosed = consultation?.status === "CLOSED"
+
+  // Mutaciones clinicas.
+  const updateClinical = useMutation({
+    mutationFn: (values: UpdateClinicalPayload) =>
+      updateConsultationClinical(consultationId, values),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['consultation', consultationId] })
-      queryClient.invalidateQueries({ queryKey: ['consultations'] })
-      setError('')
+      queryClient.invalidateQueries({
+        queryKey: ["consultation", consultationId],
+      })
+      workspaceToast.clinicalSaved()
     },
-    onError: (err) => setError(err instanceof Error ? err.message : 'No se pudo guardar la consulta'),
+    onError: (err) => workspaceToast.clinicalError(err),
   })
 
-  const addEntryMutation = useMutation({
-    mutationFn: async ({ type, description }: { type: 'diagnosis' | 'treatment' | 'prescription'; description: string }) => {
-      if (type === 'diagnosis') return addDiagnosis(consultationId, description)
-      if (type === 'treatment') return addTreatment(consultationId, description)
+  const addEntry = useMutation({
+    mutationFn: async ({
+      kind,
+      description,
+    }: {
+      kind: "diagnosis" | "treatment" | "prescription"
+      description: string
+    }) => {
+      if (kind === "diagnosis") return addDiagnosis(consultationId, description)
+      if (kind === "treatment") return addTreatment(consultationId, description)
       return addPrescription(consultationId, description)
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['consultation', consultationId] })
-      if (variables.type === 'diagnosis') setDiagnosisText('')
-      if (variables.type === 'treatment') setTreatmentText('')
-      if (variables.type === 'prescription') setPrescriptionText('')
-      setError('')
+      queryClient.invalidateQueries({
+        queryKey: ["consultation", consultationId],
+      })
+      if (variables.kind === "diagnosis") {
+        workspaceToast.diagnosisAdded()
+      } else if (variables.kind === "treatment") {
+        workspaceToast.treatmentAdded()
+      } else {
+        workspaceToast.prescriptionAdded()
+      }
     },
-    onError: (err) => setError(err instanceof Error ? err.message : 'No se pudo agregar el registro'),
+    onError: (err) => workspaceToast.clinicalEntryError(err),
   })
 
-  const updateField = (field: keyof UpdateClinicalPayload, value: string) => {
-    setFormData((current) => ({
-      ...current,
-      [field]: field === 'weight' || field === 'temperature'
-        ? value ? Number(value) : undefined
-        : value,
-    }))
+  // Mutacion comercial.
+  const checkout = useMutation({
+    mutationFn: async () => {
+      if (!consultation) throw new Error("Consulta no cargada")
+      return createSale({
+        clientId: consultation.clientId,
+        petId: consultation.petId,
+        consultationId: consultation.id,
+        discount: discountPercent,
+        paymentMethod,
+        items: cart.map((item) => {
+          const payload = itemToSalePayload(item)
+          if (item.kind === "service") {
+            return {
+              itemType: payload.itemType,
+              itemId: payload.itemId,
+              quantity: payload.quantity,
+              nameSnapshot: payload.nameSnapshot,
+              priceSnapshot: payload.priceSnapshot,
+            }
+          }
+          return {
+            itemType: payload.itemType,
+            itemId: payload.itemId,
+            quantity: payload.quantity,
+          }
+        }),
+        notes: saleNotes || undefined,
+      })
+    },
+    onSuccess: (sale) => {
+      queryClient.invalidateQueries({
+        queryKey: ["consultation", consultationId],
+      })
+      queryClient.invalidateQueries({ queryKey: ["sales"] })
+      const consultationIdSafe = consultation!.id
+      const saleId = sale?.id ?? consultationIdSafe
+      workspaceToast.saleRegistered(
+        saleId,
+        totalCents,
+        paymentMethod,
+      )
+      setCart([])
+      setDiscountPercent(0)
+      setSaleNotes("")
+    },
+    onError: (err) => workspaceToast.saleError(err),
+  })
+
+  // Hidratar carrito si la consulta ya tiene una venta asociada.
+  useEffect(() => {
+    if (!consultation) return
+    if (cart.length > 0) return
+    const existingSale = consultation.sales?.[0]
+    if (!existingSale?.items || existingSale.items.length === 0) return
+    setCart(
+      existingSale.items.map((it) => ({
+        key: newCartKey(),
+        kind: it.itemType,
+        itemId: it.itemId,
+        name: it.nameSnapshot,
+        unitPriceCents: toCents((it.priceSnapshot ?? 0) as number),
+        quantity: it.quantity,
+      })),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consultation?.id])
+
+  // Acciones del carrito comercial.
+  const handleAddItem = (item: CartItem) => {
+    setCart((current) => {
+      const existing = current.find(
+        (entry) => entry.kind === item.kind && entry.itemId === item.itemId,
+      )
+      if (existing) {
+        return current.map((entry) =>
+          entry.key === existing.key
+            ? { ...entry, quantity: entry.quantity + 1 }
+            : entry,
+        )
+      }
+      return [...current, { ...item, quantity: Math.max(1, item.quantity) }]
+    })
+    workspaceToast.itemAdded(item.name)
   }
 
-  const handleAdd = (type: 'diagnosis' | 'treatment' | 'prescription', description: string) => {
-    const normalized = description.trim()
-    if (!normalized) {
-      setError('Completa el texto antes de agregar')
-      return
-    }
-    addEntryMutation.mutate({ type, description: normalized })
+  const handleQuantityChange = (key: string, quantity: number) => {
+    setCart((current) =>
+      current.map((entry) =>
+        entry.key === key ? { ...entry, quantity } : entry,
+      ),
+    )
   }
 
-  if (isLoading) {
-    return <p className='text-center text-gray-500 py-8'>Cargando...</p>
+  const handleRemoveItem = (key: string) => {
+    setCart((current) => current.filter((entry) => entry.key !== key))
+  }
+
+  const handleClearCart = () => {
+    setCart([])
+    setDiscountPercent(0)
+    setSaleNotes("")
+    workspaceToast.cartCleared()
+  }
+
+  // Total monetario en centavos enteros.
+  const totalCents = useMemo(
+    () => computeCartTotal(cart, discountPercent),
+    [cart, discountPercent],
+  )
+
+  const historyCount = (petHistoryQuery.data?.consultations ?? []).length
+
+  if (consultationQuery.isLoading) {
+    return (
+      <div
+        role="status"
+        aria-label="Cargando consulta"
+        className="text-muted-foreground flex items-center justify-center gap-2 py-12 text-sm"
+      >
+        <Loader2 className="size-4 animate-spin" /> Cargando consulta
+      </div>
+    )
+  }
+
+  if (consultationQuery.isError) {
+    return (
+      <div className="text-destructive py-12 text-center text-sm">
+        No se pudo cargar la consulta.
+      </div>
+    )
   }
 
   if (!consultation) {
-    return <p className='text-center text-gray-500 py-8'>Consulta no encontrada</p>
+    return (
+      <div className="text-muted-foreground py-12 text-center text-sm">
+        Consulta no encontrada
+      </div>
+    )
   }
 
+  const petName = consultation.pet?.name ?? `Mascota #${consultation.petId}`
+  const clientName =
+    consultation.client?.name ?? `Cliente #${consultation.clientId}`
+  const status: "OPEN" | "CLOSED" =
+    consultation.status === "CLOSED" ? "CLOSED" : "OPEN"
+
+  const canCheckout = cart.length > 0 && !isClosed && !checkout.isPending
+
   return (
-    <div className='space-y-6'>
-      <Link href='/workstation/vet/consultas' className='inline-flex'>
-        <Button variant='ghost' size='sm'><ArrowLeft className='h-4 w-4 mr-2' />Volver</Button>
-      </Link>
+    <div className="flex flex-col gap-4 pb-32 md:pb-6">
+      <MedicalHeader
+        title="Atencion medica"
+        subtitle={`Consulta #${consultation.id}${
+          consultation.appointmentId
+            ? " - Turno #" + consultation.appointmentId
+            : ""
+        }`}
+        status={status}
+        scheduledLabel={
+          schedule?.scheduledAt
+            ? dateFormatter.format(new Date(schedule.scheduledAt))
+            : undefined
+        }
+        professional={schedule?.professional}
+        totalCents={totalCents}
+        onPrint={
+          consultation.sales && consultation.sales.length > 0
+            ? () => workspaceToast.reprintPending()
+            : undefined
+        }
+        onFinalize={() => setConfirmCloseOpen(true)}
+      />
 
-      <div className='flex items-center justify-between'>
-        <div>
-          <h1 className='text-2xl font-bold'>{consultation.pet?.name || `Mascota #${consultation.petId}`}</h1>
-          <p className='text-sm text-gray-500'>{consultation.client?.name || `Cliente #${consultation.clientId}`} · {consultation.status}</p>
-        </div>
-        <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || consultation.status === 'CLOSED'}>
-          <Save className='h-4 w-4 mr-2' />{saveMutation.isPending ? 'Guardando...' : 'Guardar'}
-        </Button>
+      <PetClientCard
+        petName={petName}
+        petSpecies={consultation.pet?.species}
+        petBreed={consultation.pet?.breed}
+        clientName={clientName}
+        clientPhone={consultation.client?.phone}
+        clientDocumentId={consultation.client?.documentId}
+        historyCount={historyCount}
+        onViewHistory={() => router.push("/workstation/vet/historial")}
+      />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <ConsultationTabs
+          consultationId={String(consultation.id)}
+          form={{
+            initialValues: {
+              weight: consultation.weight,
+              temperature: consultation.temperature,
+              // El detalle de diagnosticos / tratamientos vive en las
+              // relaciones (tabs dedicadas); las columnas `diagnosis` /
+              // `treatment` no existen en el schema, solo se persisten
+              // `symptoms` y `notes`.
+              symptoms: consultation.symptoms ?? undefined,
+              notes: consultation.notes ?? undefined,
+            },
+            disabled: isClosed,
+            saving: updateClinical.isPending,
+            onSave: (values) => updateClinical.mutate(values),
+          }}
+          diagnoses={consultation.diagnoses ?? []}
+          treatments={consultation.treatments ?? []}
+          prescriptions={consultation.prescriptions ?? []}
+          onAddDiagnosis={async (description) => {
+            await addEntry.mutateAsync({ kind: "diagnosis", description })
+          }}
+          onAddTreatment={async (description) => {
+            await addEntry.mutateAsync({ kind: "treatment", description })
+          }}
+          onAddPrescription={async (description) => {
+            await addEntry.mutateAsync({ kind: "prescription", description })
+          }}
+        />
+
+        <aside className="lg:sticky lg:top-4 lg:self-start">
+          <CommercePanel
+            items={cart}
+            onQuantityChange={handleQuantityChange}
+            onRemove={handleRemoveItem}
+            onClear={handleClearCart}
+            discountPercent={discountPercent}
+            onDiscountChange={setDiscountPercent}
+            notes={saleNotes}
+            onNotesChange={setSaleNotes}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
+            onAddItem={() => setItemDialogOpen(true)}
+            loading={checkout.isPending}
+            canCheckout={canCheckout}
+            onCheckout={() => checkout.mutate()}
+          />
+        </aside>
       </div>
 
-      {error && <p className='text-sm text-red-600'>{error}</p>}
+      <AddItemDialog
+        open={itemDialogOpen}
+        onOpenChange={setItemDialogOpen}
+        products={(productsQuery.data ?? []) as Product[]}
+        services={(servicesQuery.data ?? []) as Service[]}
+        loadingProducts={productsQuery.isLoading}
+        loadingServices={servicesQuery.isLoading}
+        onAdd={handleAddItem}
+      />
 
-      <div className='grid gap-6 lg:grid-cols-[1fr_360px]'>
-        <div className='space-y-6'>
-          <Card>
-            <CardHeader><CardTitle>Datos Clínicos</CardTitle></CardHeader>
-            <CardContent className='space-y-4'>
-              <div className='grid gap-4 md:grid-cols-2'>
-                <div className='space-y-2'>
-                  <label className='text-sm font-medium' htmlFor='weight'>Peso (kg)</label>
-                  <Input id='weight' type='number' step='0.1' value={formData.weight || ''} onChange={(e) => updateField('weight', e.target.value)} />
-                </div>
-                <div className='space-y-2'>
-                  <label className='text-sm font-medium' htmlFor='temperature'>Temperatura (°C)</label>
-                  <Input id='temperature' type='number' step='0.1' value={formData.temperature || ''} onChange={(e) => updateField('temperature', e.target.value)} />
-                </div>
-              </div>
+      <MobileCheckoutBar
+        totalCents={totalCents}
+        itemsCount={cart.length}
+        loading={checkout.isPending}
+        canCheckout={canCheckout}
+        onCheckout={() => checkout.mutate()}
+      />
 
-              <div className='space-y-2'>
-                <label className='text-sm font-medium' htmlFor='symptoms'>Síntomas</label>
-                <textarea id='symptoms' className='w-full min-h-24 rounded-md border p-3 text-sm' value={formData.symptoms || ''} onChange={(e) => updateField('symptoms', e.target.value)} />
-              </div>
-              <div className='space-y-2'>
-                <label className='text-sm font-medium' htmlFor='diagnosis'>Diagnóstico principal</label>
-                <textarea id='diagnosis' className='w-full min-h-24 rounded-md border p-3 text-sm' value={formData.diagnosis || ''} onChange={(e) => updateField('diagnosis', e.target.value)} />
-              </div>
-              <div className='space-y-2'>
-                <label className='text-sm font-medium' htmlFor='treatment'>Tratamiento aplicado</label>
-                <textarea id='treatment' className='w-full min-h-24 rounded-md border p-3 text-sm' value={formData.treatment || ''} onChange={(e) => updateField('treatment', e.target.value)} />
-              </div>
-              <div className='space-y-2'>
-                <label className='text-sm font-medium' htmlFor='notes'>Notas</label>
-                <textarea id='notes' className='w-full min-h-24 rounded-md border p-3 text-sm' value={formData.notes || ''} onChange={(e) => updateField('notes', e.target.value)} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle>Registros Clínicos</CardTitle></CardHeader>
-            <CardContent className='grid gap-4 md:grid-cols-3'>
-              <ClinicalList title='Diagnósticos' items={consultation.diagnoses || []} value={diagnosisText} onChange={setDiagnosisText} onAdd={() => handleAdd('diagnosis', diagnosisText)} />
-              <ClinicalList title='Tratamientos' items={consultation.treatments || []} value={treatmentText} onChange={setTreatmentText} onAdd={() => handleAdd('treatment', treatmentText)} />
-              <ClinicalList title='Recetas' items={consultation.prescriptions || []} value={prescriptionText} onChange={setPrescriptionText} onAdd={() => handleAdd('prescription', prescriptionText)} />
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader><CardTitle>Historial del Paciente</CardTitle></CardHeader>
-          <CardContent>
-            {!petHistory?.consultations || petHistory.consultations.length === 0 ? (
-              <p className='text-sm text-gray-500'>Sin historial clínico previo</p>
-            ) : (
-              <div className='space-y-3'>
-                {petHistory.consultations.slice(0, 8).map((item: unknown) => {
-                  const entry = item as { id: string | number; createdAt?: string; diagnosis?: string; notes?: string; totalFee?: number }
-                  return (
-                    <div key={entry.id} className='border-b pb-3'>
-                      <p className='text-sm font-medium'>{entry.createdAt ? new Date(entry.createdAt).toLocaleDateString('es-UY') : 'Sin fecha'}</p>
-                      <p className='text-sm text-gray-500'>{entry.diagnosis || entry.notes || 'Consulta sin diagnóstico'}</p>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <Dialog
+        open={confirmCloseOpen}
+        onOpenChange={(next) => setConfirmCloseOpen(next)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Finalizar atencion</DialogTitle>
+            <DialogDescription>
+              {cart.length > 0
+                ? "Hay items cargados sin cobrar. Cancela la venta o cobrala antes de finalizar."
+                : isClosed
+                ? "La consulta ya esta finalizada."
+                : "Esta accion cierra la consulta. La atencion medica queda registrada independientemente del cobro. (Nota: el backend actual exige items para usar /close; este flujo quedara habilitado cuando se exponga el endpoint de cierre sin venta.)"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmCloseOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setConfirmCloseOpen(false)
+                workspaceToast.finalizeWithoutSalePending()
+              }}
+              disabled={cart.length > 0 || isClosed}
+            >
+              Si, finalizar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function ClinicalList({
-  title,
-  items,
-  value,
-  onChange,
-  onAdd,
-}: {
-  title: string
-  items: Array<{ id: string | number; description: string }>
-  value: string
-  onChange: (value: string) => void
-  onAdd: () => void
-}) {
-  return (
-    <div className='space-y-3'>
-      <h3 className='font-medium'>{title}</h3>
-      <div className='space-y-2'>
-        {items.length === 0 ? (
-          <p className='text-sm text-gray-500'>Sin registros</p>
-        ) : items.map((item) => (
-          <p key={item.id} className='rounded-md bg-gray-50 p-2 text-sm'>{item.description}</p>
-        ))}
-      </div>
-      <div className='flex gap-2'>
-        <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder='Agregar...' />
-        <Button type='button' size='icon' onClick={onAdd}><Plus className='h-4 w-4' /></Button>
-      </div>
-    </div>
-  )
-}
+// Import dinamico al final para mantener el archivo simple y evitar
+// conflicto de orden con el hook que usa `totalCents` antes del
+// `useMemo`. (esbuild/Next resuelven este modulo igual).
+import { toCents } from "@/lib/workstation/money"
