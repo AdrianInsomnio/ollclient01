@@ -86,8 +86,15 @@ export interface UserListResponse {
 }
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
-  const res = await get<{ metrics: DashboardMetrics }>("/admin/dashboard/metrics");
-  return res.metrics;
+  // El backend responde el DashboardMetrics plano, pero toleramos un envoltorio
+  // { metrics: DashboardMetrics } por si existiera una version legacy.
+  const res = await get<DashboardMetrics | { metrics: DashboardMetrics }>(
+    "/admin/dashboard/metrics",
+  );
+  if (res && typeof res === "object" && "metrics" in res && res.metrics) {
+    return res.metrics;
+  }
+  return res as DashboardMetrics;
 }
 
 export async function getAdminClinics(): Promise<ClinicListResponse> {
@@ -166,3 +173,4 @@ export async function updateClinic(id: number, data: Partial<{
 export async function deleteClinic(id: number): Promise<void> {
   return del<void>(`/superadmin/clinics/${id}`);
 }
+

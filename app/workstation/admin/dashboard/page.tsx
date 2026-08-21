@@ -23,8 +23,7 @@ export default function AdminDashboardPage() {
   const { user } = useAuthStore()
   const [state, setState] = useState<LoadState>({ status: 'loading' })
 
-  const fetchMetrics = async () => {
-    setState({ status: 'loading' })
+  async function fetchMetrics() {
     try {
       const data = await getDashboardMetrics()
       setState({ status: 'ready', data })
@@ -49,11 +48,14 @@ export default function AdminDashboardPage() {
     }
   }
 
+
+
   useEffect(() => {
-    fetchMetrics()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchMetrics()
   }, [])
 
-  if (state.status === 'loading') {
+    if (state.status === 'loading') {
     return <DashboardSkeleton />
   }
 
@@ -82,6 +84,39 @@ export default function AdminDashboardPage() {
   }
 
   const { data } = state
+  const isValidPayload =
+    !!data &&
+    (data.scope === 'organization' || data.scope === 'clinic') &&
+    !!data.organization &&
+    !!data.totals &&
+    Array.isArray(data.clinics)
+
+  if (!isValidPayload) {
+    return (
+      <div className='space-y-6'>
+        <h2 className='text-2xl font-bold'>Dashboard de Administracion</h2>
+        <p className='text-gray-600'>Bienvenido, {user?.username}</p>
+        <div
+          role='alert'
+          className='bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 flex flex-col gap-3'
+        >
+          <div>
+            <p className='font-semibold'>No se pudieron cargar las metricas</p>
+            <p className='text-sm'>
+              Respuesta inesperada del servidor. Contacte al administrador.
+            </p>
+          </div>
+          <button
+            onClick={fetchMetrics}
+            className='self-start px-3 py-1.5 text-sm font-medium rounded-md border border-red-300 hover:bg-red-100'
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const isOrgScope = data.scope === 'organization'
   const isEmpty = data.totals.clinicsCount === 0
 

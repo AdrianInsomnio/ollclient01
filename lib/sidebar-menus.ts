@@ -211,15 +211,15 @@ export const assistantSidebar: MenuGroup[] = [
     label: "Ventas",
     icon: "ShoppingCart",
     items: [
-      { href: "/workstation/pos", label: "POS", icon: "ShoppingCart" },
-      { href: "/workstation/sales", label: "Ventas", icon: "ShoppingCart" },
+      { href: "/workstation/user/pos", label: "POS", icon: "ShoppingCart" },
+      { href: "/workstation/user/sales", label: "Ventas", icon: "ShoppingCart" },
     ],
   },
   {
     label: "Caja",
     icon: "Wallet",
     items: [
-      { href: "/workstation/cash", label: "Caja del Día", icon: "Wallet" },
+      { href: "/workstation/user/cash", label: "Caja del Día", icon: "Wallet" },
     ],
   },
 ];
