@@ -24,8 +24,12 @@ import {
   SidebarMenuSubButton,
   SidebarSeparator,
   useSidebar,
+  SidebarFooter,
 } from '@/components/ui/sidebar'
 import { PanelLeftIcon } from 'lucide-react'
+import { NavUser } from '../nav-user'
+import { SearchForm } from './search-form'
+import { Separator } from 'radix-ui'
 
 interface MenuItemProps {
   item: MenuItem
@@ -109,10 +113,11 @@ function MenuGroupComponent({ group }: { group: MenuGroup }) {
 export default function SidebarShadcn() {
   const { user } = useAuthStore()
   const role = user?.role || 'USER'
+  //const name = user?.username || 'User'
   const menuGroups = user ? getSidebarForRole(role) : []
 
   return (
-    <Sidebar>
+    <Sidebar collapsible='offcanvas' className='w-64'>
       <SidebarHeader>
         <div className='flex h-16 items-center gap-2 px-4'>
           <div className='flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground'>
@@ -120,7 +125,7 @@ export default function SidebarShadcn() {
           </div>
           <span className='text-lg font-semibold'>Vet-app</span>
         </div>
-       
+       <SearchForm />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -133,6 +138,10 @@ export default function SidebarShadcn() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarSeparator/>
+      <SidebarFooter>
+        <NavUser user={user} />
+      </SidebarFooter>
     </Sidebar>
   )
 }

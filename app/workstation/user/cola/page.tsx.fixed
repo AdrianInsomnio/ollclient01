@@ -1,3 +1,4 @@
+﻿
 'use client'
 
 import { useState } from 'react'
@@ -138,7 +139,7 @@ export default function ColaPage() {
 
   const isLoading = loadingConsultations || loadingAppointments || loadingVets
 
-  // Filtrar consultas según el estado
+  // Filtrar consultas segï¿½n el estado
   const filteredConsultations = consultations?.filter((c) => {
     if (filter === 'all') return true
     if (filter === 'active') return c.status === 'OPEN'
@@ -149,7 +150,7 @@ export default function ColaPage() {
   // Obtener veterinarios (usuarios con rol VET)
   const vets = adminUsers?.users?.filter((u) => u.role === 'VET' && u.isActive) || []
 
-  // Estadísticas
+  // Estadï¿½sticas
   const completedToday = appointments?.filter((a) => a.status === 'completed').length || 0
   const inProgress = filteredConsultations.filter((c) => c.status === 'OPEN').length
   const cancelledToday = appointments?.filter((a) => a.status === 'cancelled').length || 0
@@ -160,7 +161,7 @@ export default function ColaPage() {
       <div className='space-y-6'>
         <div className='flex items-center justify-between'>
           <div>
-            <h1 className='text-2xl font-bold'>Cola de Atención</h1>
+            <h1 className='text-2xl font-bold'>Cola de Atenciï¿½n</h1>
             <p className='text-muted-foreground'>Gestiona el flujo de pacientes y consultas en tiempo real.</p>
           </div>
           <Button disabled>
@@ -197,7 +198,7 @@ export default function ColaPage() {
       {/* Header */}
       <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
         <div>
-          <h1 className='text-2xl font-bold tracking-tight'>Cola de Atención</h1>
+          <h1 className='text-2xl font-bold tracking-tight'>Cola de Atenciï¿½n</h1>
           <p className='text-muted-foreground mt-1'>
             Gestiona el flujo de pacientes y consultas en tiempo real.
           </p>
@@ -228,7 +229,7 @@ export default function ColaPage() {
         <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium text-muted-foreground'>
-              Pacientes en Atención
+              Pacientes en Atenciï¿½n
             </CardTitle>
             <Activity className='h-4 w-4 text-green-500' />
           </CardHeader>
@@ -323,7 +324,7 @@ export default function ColaPage() {
                   </h3>
                   <p className='text-sm text-muted-foreground mt-1'>
                     {filter === 'all'
-                      ? 'La sala de espera está vacía'
+                      ? 'La sala de espera estï¿½ vacï¿½a'
                       : 'No hay pacientes con filtro: ' + (filter === 'active' ? 'Activas' : 'En Curso')}
                   </p>
                   <Link href='/workstation/user/cola/agregar' className='mt-4'>
@@ -341,7 +342,7 @@ export default function ColaPage() {
                       href={'/workstation/user/consultas/' + consultation.id}
                       className='group flex items-center gap-4 p-4 border rounded-xl hover:bg-accent/50 transition-all duration-200 border-border'
                     >
-                      {/* Número de posición */}
+                      {/* NÃºmero de posiciï¿½n */}
                       <div className='flex-shrink-0 w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center'>
                         <span className='font-bold text-lg text-blue-600'>{index + 1}</span>
                       </div>
@@ -358,13 +359,13 @@ export default function ColaPage() {
                           <span className='font-medium'>{consultation.pet?.name || 'Mascota #' + consultation.petId}</span>
                           {consultation.pet?.species && (
                             <>
-                              <span className='text-muted-foreground'>·</span>
+                              <span className='text-muted-foreground'>ï¿½</span>
                               <span>{consultation.pet.species}</span>
                             </>
                           )}
                           {consultation.pet?.breed && (
                             <>
-                              <span className='text-muted-foreground'>·</span>
+                              <span className='text-muted-foreground'>ï¿½</span>
                               <span>{consultation.pet.breed}</span>
                             </>
                           )}
@@ -376,7 +377,7 @@ export default function ColaPage() {
                         )}
                       </div>
 
-                      {/* Tiempo de espera y acción */}
+                      {/* Tiempo de espera y acciï¿½n */}
                       <div className='flex flex-col items-end gap-2 text-right'>
                         <div className='flex items-center gap-1.5 text-sm text-muted-foreground'>
                           <Clock className='h-3.5 w-3.5' />
@@ -394,12 +395,12 @@ export default function ColaPage() {
 
         {/* Panel Lateral Derecho */}
         <div className='lg:col-span-1 space-y-6'>
-          {/* Acciones Rápidas */}
+          {/* Acciones RÃ¡pidas */}
           <Card>
             <CardHeader className='pb-3'>
               <CardTitle className='flex items-center gap-2 text-lg'>
                 <HeartPulse className='h-5 w-5 text-emerald-600' />
-                Acciones Rápidas
+                Acciones RÃ¡pidas
               </CardTitle>
             </CardHeader>
             <CardContent className='pt-0 space-y-2'>
@@ -473,3 +474,5 @@ export default function ColaPage() {
     </div>
   )
 }
+
+

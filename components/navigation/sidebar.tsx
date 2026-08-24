@@ -43,7 +43,7 @@ export default function Sidebar() {
           return (
             <div key={group.label}>
               <button onClick={() => toggleExpand(group.label)} className="w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium">
-                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3">
                   <GroupIcon className="w-5 h-5" />
                   <span>{group.label}</span>
                 </div>
