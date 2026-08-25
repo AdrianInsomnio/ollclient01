@@ -1,4 +1,4 @@
-import { get, post, put, del } from '../api-client'
+﻿import { get, post, put, del } from '../api-client'
 
 export interface Pet {
   id: number
@@ -98,4 +98,9 @@ export async function deletePet(id: string | number): Promise<void> {
 export async function getPetHistory(id: string | number): Promise<PetHistory> {
   const response = await get<PetHistoryResponse | PetHistory>('/pets/' + id + '/history')
   return 'history' in response ? response.history : response
+}
+
+export async function searchPets(query: string): Promise<Pet[]> {
+  const response = await get<PetsResponse>('/pets/search?q=' + encodeURIComponent(query))
+  return response.pets
 }

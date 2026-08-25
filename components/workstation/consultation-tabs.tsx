@@ -63,7 +63,7 @@ export function ConsultationTabs(props: ConsultationTabsProps) {
       className="flex flex-col gap-3"
     >
       <div className="bg-background sticky top-0 z-10 -mx-1 px-1">
-        <TabsList className="bg-muted text-muted-foreground inline-flex h-8 w-full items-center justify-start rounded-lg p-[3px] sm:w-auto">
+        <TabsList className="bg-muted text-muted-foreground inline-flex h-8 w-full items-center justify-start rounded-lg p-0.75 sm:w-auto">
           <TabsTrigger value="consulta">
             <ClipboardList className="size-3.5" />
             Consulta
