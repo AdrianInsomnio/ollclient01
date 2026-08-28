@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
+import { Eye, EyeOff } from 'lucide-react'
 import {
   Button,
   Table,
@@ -26,6 +27,10 @@ import {
   Label,
   Input,
   Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Switch,
   Textarea,
   Separator,
@@ -66,6 +71,7 @@ export default function SuperAdminUsersPage() {
     role: 'USER',
     isActive: true,
   })
+  const [showPassword, setShowPassword] = useState(false)
 
   // Role labels and colors
   const ROLE_LABELS: Record<UserListItem['role'], string> = {
@@ -130,6 +136,7 @@ export default function SuperAdminUsersPage() {
 
   const handleCreateUser = () => {
     setEditingUserId(null)
+    setShowPassword(false)
     setFormData({
       username: '',
       email: '',
@@ -142,6 +149,7 @@ export default function SuperAdminUsersPage() {
 
   const handleEditUser = (user: UserListItem) => {
     setEditingUserId(user.id)
+    setShowPassword(false)
     setFormData({
       id: user.id,
       username: user.username,
@@ -156,6 +164,7 @@ export default function SuperAdminUsersPage() {
   const handleCloseDialog = () => {
     setDialogOpen(false)
     setEditingUserId(null)
+    setShowPassword(false)
     setFormData({
       username: '',
       email: '',
@@ -171,6 +180,10 @@ export default function SuperAdminUsersPage() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }))
+  }
+
+  const handleRoleChange = (role: UserFormData['role']) => {
+    setFormData(prev => ({ ...prev, role }))
   }
 
   // Handle form submit (create or update)
@@ -267,7 +280,7 @@ export default function SuperAdminUsersPage() {
             size='sm'
             onClick={() => setLimit(l => Math.min(l + 10, 100))}
           >
-            {limit} por p\u00E1gina
+            {limit} por Pagina
           </Button>
           <Button 
             variant='default' 
@@ -303,9 +316,9 @@ export default function SuperAdminUsersPage() {
           </div>
         ) : users.length === 0 ? (
           <div className='p-8 text-center'>
-            <p className='text-lg font-semibold text-gray-800'>A\u00FAn no hay usuarios</p>
+            <p className='text-lg font-semibold text-gray-800'>No hay usuarios</p>
             <p className='text-sm text-gray-600 mt-1'>
-              Los usuarios se crean desde el registro o el panel de administraci\u00F3n.
+              Los usuarios se crean desde el registro o el panel de administración.
             </p>
           </div>
         ) : (
@@ -383,7 +396,7 @@ export default function SuperAdminUsersPage() {
                 >
                   {[10, 25, 50, 100].map(size => (
                     <option key={size} value={size}>
-                      {size} por p\u00E1gina
+                      {size} por página
                     </option>
                   ))}
                 </select>
@@ -405,7 +418,7 @@ export default function SuperAdminUsersPage() {
             {editingUserId ? 'Editar Usuario' : 'Nuevo Usuario'}
           </Button>
         </DialogTrigger>
-        <DialogContent className='w-112.5 max-h-[90vh] overflow-y-auto'>
+        <DialogContent className='w-225! max-w-[calc(100%-2rem)]! max-h-[90vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>{editingUserId ? 'Editar Usuario' : 'Nuevo Usuario'}</DialogTitle>
             <DialogDescription>
@@ -413,12 +426,12 @@ export default function SuperAdminUsersPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className='space-y-6'>
-            <Form>
+            <Form className='space-y-5'>
               <FormField>
                 <FormItem>
                   <FormLabel>Nombre de Usuario</FormLabel>
                   <FormControl>
-                    <Input 
+                    <Input className='h-10'
                       type='text' 
                       name='username' 
                       value={formData.username} 
@@ -434,7 +447,7 @@ export default function SuperAdminUsersPage() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input 
+                    <Input className='h-10'
                       type='email' 
                       name='email' 
                       value={formData.email} 
@@ -449,22 +462,28 @@ export default function SuperAdminUsersPage() {
               {/* Password field - required for create, optional for edit */}
               <FormField>
                 <FormItem>
-                  <FormLabel>{editingUserId ? 'Nueva Contrase\u00F1a (opcional)' : 'Contrase\u00F1a *'}</FormLabel>
+                  <FormLabel>{editingUserId ? 'Nueva Contraseña (opcional)' : 'Contraseña *'}</FormLabel>
                   <FormControl>
-                    <Input 
-                      type='password' 
-                      name='password' 
-                      value={formData.password} 
-                      onChange={handleFormChange} 
-                      required={!editingUserId}
-                      placeholder={editingUserId ? 'Dejar vac\u00EDo para no cambiar' : 'Ingrese la contrase\u00F1a'}
-                    />
+                    <div className='relative'>
+                      <Input
+                        className='h-10 pr-10'
+                        type={showPassword ? 'text' : 'password'}
+                        name='password'
+                        value={formData.password}
+                        onChange={handleFormChange}
+                        required={!editingUserId}
+                        placeholder={editingUserId ? 'Dejar vacío para no cambiar' : 'Ingrese la contraseña'}
+                      />
+                      <button type='button' className='absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-500 hover:text-gray-800' onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Ocultar contrase\u00F1a' : 'Mostrar contrase\u00F1a'}>
+                        {showPassword ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                      </button>
+                    </div>
                   </FormControl>
                   {!editingUserId && (
-                    <p className='text-xs text-gray-500 mt-1'>La contrase\u00F1a es obligatoria para crear un usuario</p>
+                    <p className='text-xs text-gray-500 mt-1'>La contraseña es obligatoria para crear un usuario</p>
                   )}
                   {editingUserId && (
-                    <p className='text-xs text-gray-500 mt-1'>Dejar vac\u00EDo para mantener la contrase\u00F1a actual</p>
+                    <p className='text-xs text-gray-500 mt-1'>Dejar vacío para mantener la contraseña actual</p>
                   )}
                 </FormItem>
               </FormField>
@@ -473,15 +492,16 @@ export default function SuperAdminUsersPage() {
                 <FormItem>
                   <FormLabel>Rol</FormLabel>
                   <FormControl>
-                    <Select 
-                      name='role' 
-                      value={formData.role} 
-                      onChange={handleFormChange}
-                    >
-                      <option value='USER'>Usuario Est\u00E1ndar</option>
-                      <option value='VET'>Veterinario</option>
-                      <option value='ADMIN'>Administrador</option>
-                      <option value='SUPER_ADMIN'>Super Administrador</option>
+                    <Select value={formData.role} onValueChange={(value) => handleRoleChange(value as UserFormData['role'])}>
+                      <SelectTrigger className='h-10 w-full'>
+                        <SelectValue placeholder='Selecciona un rol' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='USER'>Usuario Estándar</SelectItem>
+                        <SelectItem value='VET'>Veterinario</SelectItem>
+                        <SelectItem value='ADMIN'>Administrador</SelectItem>
+                        <SelectItem value='SUPER_ADMIN'>Super Administrador</SelectItem>
+                      </SelectContent>
                     </Select>
                   </FormControl>
                 </FormItem>

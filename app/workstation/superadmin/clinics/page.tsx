@@ -38,6 +38,7 @@ import {
   deleteClinic,
 } from "@/lib/api/admin";
 import { Edit, Trash2, UserPlus } from "lucide-react";
+import { ClinicUsersModal } from "@/components/clinics/clinic-users-modal";
 
 // Types for clinic data
 type Clinic = {
@@ -94,6 +95,7 @@ export default function SuperAdminClinicsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClinicId, setEditingClinicId] = useState<number | null>(null);
   const [formData, setFormData] = useState<Partial<Clinic>>({});
+  const [usersClinic, setUsersClinic] = useState<Clinic | null>(null);
 
   // Fetch clinics with pagination
   const fetchClinics = async () => {
@@ -172,7 +174,9 @@ export default function SuperAdminClinicsPage() {
     setDialogOpen(true);
   };
 
-  const handleAddUserToClinic = async (id: number) => {
+  const handleAddUserToClinic = (id: number) => {
+    const clinic = clinics.find((item) => item.id === id);
+    if (clinic) setUsersClinic(clinic);
   };
   // Close dialog
   const handleCloseDialog = () => {
@@ -181,8 +185,9 @@ export default function SuperAdminClinicsPage() {
     setFormData({});
   };
 
-  const handleClinicUserList = async (id: number) => {
-    
+  const handleClinicUserList = (id: number) => {
+    const clinic = clinics.find((item) => item.id === id);
+    if (clinic) setUsersClinic(clinic);
   };
 
   // Handle form input changes
@@ -610,6 +615,12 @@ export default function SuperAdminClinicsPage() {
           </form>
         </DialogContent>
       </Dialog>
+      <ClinicUsersModal
+        open={usersClinic !== null}
+        onOpenChange={(open) => { if (!open) setUsersClinic(null); }}
+        clinicId={usersClinic?.id ?? null}
+        clinicName={usersClinic?.name ?? ""}
+      />
     </div>
   );
 }

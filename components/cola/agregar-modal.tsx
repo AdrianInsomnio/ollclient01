@@ -305,8 +305,8 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
-        <DialogHeader className="pb-4">
+      <DialogContent className="!w-[900px] !max-w-[calc(100%-2rem)] max-h-[90vh] overflow-hidden p-0">
+        <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="flex items-center gap-2">
             <HeartPulse className="h-5 w-5 text-emerald-600" />
             Agregar a la Cola
@@ -316,7 +316,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <DialogContent className="p-0 overflow-hidden">
+        <div className="overflow-hidden px-6">
           {/* Pesta�as: Buscar / Nuevo Paciente */}
           <div className="border-b bg-muted/50">
             <button
@@ -614,9 +614,10 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
             </div>
           )}
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-3 px-6 pt-4 pb-8">
             <Button
               variant="outline"
+              className="px-5 py-2"
               onClick={() => setOpen(false)}
               disabled={isSubmitting}
             >
@@ -626,7 +627,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
               <Button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="ml-auto"
+                className="ml-auto px-5 py-2"
               >
                 {isSubmitting ? (
                   <>
@@ -644,7 +645,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
               <Button
                 onClick={handleCreateNewPatient}
                 disabled={isSubmitting}
-                className="ml-auto"
+                className="ml-auto px-5 py-2"
               >
                 {isSubmitting ? (
                   <>
@@ -662,14 +663,14 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
               <Button
                 variant="outline"
                 onClick={() => setShowNewPatientForm(true)}
-                className="ml-auto"
+                className="ml-auto px-5 py-2"
               >
                 <UserPlus className="h-4 w-4 mr-2" />
                 Crear Nuevo Paciente
               </Button>
             )}
           </DialogFooter>
-        </DialogContent>
+        </div>
       </DialogContent>
     </Dialog>
   )

@@ -74,6 +74,7 @@ export interface UserListItem {
   lastLogin: string | null;
   createdAt: string;
   clinicCount: number;
+  clinics?: Array<{ id: number; name: string }>;
 }
 
 export interface UserListResponse {
@@ -127,6 +128,10 @@ export async function updateUser(id: number, data: Partial<{
 
 export async function deleteUser(id: number): Promise<void> {
   return del<void>(`/admin/users/${id}`);
+}
+
+export async function updateUserClinics(userId: number, clinicIds: number[]): Promise<void> {
+  return put<void>(`/admin/users/${userId}/clinics`, { clinicIds });
 }
 
 export async function createClinic(data: {
