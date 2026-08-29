@@ -154,8 +154,9 @@ export const adminSidebar: MenuGroup[] = [
     label: "Finanzas",
     icon: "Wallet",
     items: [
-      { href: "/workstation/admin/cash", label: "Caja", icon: "Wallet" },
-      { href: "/workstation/admin/payments", label: "Pagos", icon: "Wallet" },
+      { href: "/workstation/admin/cash/shifts", label: "Gestion Turnos", icon: "Wallet" },
+      { href: "/workstation/admin/cash/registers", label: "Gestion Cajas", icon: "Wallet" },
+      { href: "/workstation/admin/cash/payments", label: "Pagos", icon: "Wallet" },
     ],
   },
   {

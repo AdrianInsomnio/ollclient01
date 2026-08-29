@@ -164,6 +164,14 @@ export async function put<T>(endpoint: string, data?: unknown, config?: RequestC
   });
 }
 
+export async function patch<T>(endpoint: string, data?: unknown, config?: RequestConfig): Promise<T> {
+  return request<T>(endpoint, {
+    ...config,
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function del<T>(endpoint: string, config?: RequestConfig): Promise<T> {
   return request<T>(endpoint, { ...config, method: "DELETE" });
 }

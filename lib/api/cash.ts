@@ -1,4 +1,4 @@
-import { get, post } from "../api-client";
+import { get, patch, post } from "../api-client";
 
 export type CashShiftStatus = "OPEN" | "CLOSED" | "CANCELLED";
 export type CashMovementType = "CASH_IN" | "CASH_OUT" | "ADJUSTMENT";
@@ -53,3 +53,18 @@ export const getCashShift = (id: number) => get<CashShiftDetail>(`/cash/admin/sh
 export const getCashMovements = (filters: CashFilters) => get<Paginated<CashMovement>>(`/cash/admin/movements?${queryString(filters)}`);
 export const createCashAdjustment = (id: number, data: { amount: string; reason: string; notes?: string }) => post<CashMovement>(`/cash/admin/shifts/${id}/adjustment`, data);
 export const getCashRegisters = () => get<{ success?: boolean; data: CashRegister[] }>("/cash").then((response) => response.data ?? []);
+
+export interface AdminCashRegister extends CashRegister {
+  isActive: boolean;
+  clinicId: number;
+  createdAt: string;
+  updatedAt: string;
+  shifts: Array<{ id: number; status: string; openedAt: string; closedAt?: string | null; user?: CashUser | null }>;
+  clinic?: { id: number; name: string };
+}
+
+export const getAdminCashRegisters = (status?: "active" | "disabled" | "all") => get<{ success: boolean; data: AdminCashRegister[] }>(`/cash/admin/registers${status ? `?status=${status}` : ""}`).then((response) => response.data);
+export const getAdminCashRegister = (id: number) => get<{ success: boolean; data: AdminCashRegister }>(`/cash/admin/registers/${id}`).then((response) => response.data);
+export const createAdminCashRegister = (data: { name: string; code?: string }) => post<{ success: boolean; data: AdminCashRegister }>("/cash/admin/registers", data).then((response) => response.data);
+export const updateAdminCashRegister = (id: number, data: { name: string; code?: string }) => patch<{ success: boolean; data: AdminCashRegister }>(`/cash/admin/registers/${id}`, data).then((response) => response.data);
+export const updateAdminCashRegisterStatus = (id: number, isActive: boolean) => patch<{ success: boolean; data: AdminCashRegister }>(`/cash/admin/registers/${id}/status`, { isActive }).then((response) => response.data);
