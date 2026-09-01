@@ -4,8 +4,8 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
 import Sidebar from '@/components/navigation/sidebar-shadcn'
-import { UserNav } from '@/components/navigation/user-nav'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
+import { Header } from '@/components/layout/Header'
 
 export default function AdminLayout({
   children,
@@ -26,13 +26,15 @@ export default function AdminLayout({
     return null
   }
 
+  const clinicName = user?.clinics?.[0]?.name || 'Clínica Veterinaria'
+
   return (
     <SidebarProvider>
       <div className='group/sidebar-wrapper flex min-h-svh w-full'>
         <Sidebar />
         <SidebarInset>
           <div className='flex h-screen flex-col'>
-            <UserNav />
+            <Header clinicName={clinicName} notificationCount={0} />
             <main className='flex-1 bg-gray-50 overflow-y-auto'>
               <div className='max-w-7xl mx-auto w-full p-6'>{children}</div>
             </main>
