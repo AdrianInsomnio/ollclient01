@@ -1,9 +1,9 @@
 ﻿"use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { getOpenConsultations } from "@/lib/api/consultations";
+import { getOpenConsultations, updateConsultationPriority } from "@/lib/api/consultations";
 import { getAppointments } from "@/lib/api/appointments";
 import { getAdminUsers } from "@/lib/api/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,16 +39,17 @@ import {
   GripVertical,
 } from "lucide-react";
 import { AgregarAColaModal } from "@/components/cola/agregar-modal";
-import { queryClient } from "@/lib/query-client";
+import { toast } from "sonner";
 
 interface Consultation {
-  id: string;
+  id: string | number;
   clientId: string | number;
   petId: string | number;
   client?: { id: string | number; name: string; phone?: string };
   pet?: { id: string | number; name: string; species: string; breed?: string };
   vetId?: string;
   status: "OPEN" | "CLOSED";
+  priority: "URGENT" | "SCHEDULED" | "NORMAL";
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -79,7 +80,7 @@ interface User {
   clinicCount: number;
 }
 
-type Priority = "NORMAL" | "PROGRAMADA" | "URGENTE";
+type Priority = "NORMAL" | "SCHEDULED" | "URGENT";
 type QueueStatus = "WAITING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 type QueueFilter = "all" | "waiting" | "in_progress";
 
@@ -102,9 +103,9 @@ interface FilterCounts {
 
 function getPriorityOrder(priority: Priority): number {
   switch (priority) {
-    case "URGENTE":
+    case "URGENT":
       return 0;
-    case "PROGRAMADA":
+    case "SCHEDULED":
       return 1;
     case "NORMAL":
       return 2;
@@ -143,16 +144,6 @@ function calculateFilterCounts(patients: QueuePatient[]): FilterCounts {
   };
 }
 
-function changePatientPriority(
-  patients: QueuePatient[],
-  patientId: number,
-  newPriority: Priority,
-): QueuePatient[] {
-  return patients.map((p) =>
-    p.id === patientId ? { ...p, priority: newPriority } : p,
-  );
-}
-
 function formatWaitTime(createdAt: Date): string {
   const diff = Date.now() - createdAt.getTime();
   const minutes = Math.floor(diff / 60000);
@@ -172,37 +163,30 @@ function getInitials(name: string): string {
 
 function mapConsultationToQueuePatient(
   consultation: Consultation,
-  index: number,
 ): QueuePatient {
-  const hasAppointment = false;
-  const isUrgent =
-    consultation.notes?.toUpperCase().includes("URGENTE") ?? false;
-  let priority: Priority = "NORMAL";
-  if (isUrgent) priority = "URGENTE";
-  else if (hasAppointment) priority = "PROGRAMADA";
   let status: QueueStatus = "WAITING";
   if (consultation.status === "OPEN") status = "WAITING";
   return {
-    id: index + 1,
+    id: Number(consultation.id),
     ownerName: consultation.client?.name || "Cliente #" + consultation.clientId,
     petName: consultation.pet?.name || "Mascota #" + consultation.petId,
     species: consultation.pet?.species || "Desconocida",
     reason: consultation.notes || "Consulta general",
     status,
-    priority,
+    priority: consultation.priority,
     createdAt: new Date(consultation.createdAt),
   };
 }
 
 function PriorityBadge({ priority }: { priority: Priority }) {
   const config = {
-    URGENTE: {
+    URGENT: {
       label: "Urgente",
       icon: AlertTriangle,
       className: "bg-red-100 text-red-700 border-red-200",
       iconClassName: "text-red-600",
     },
-    PROGRAMADA: {
+    SCHEDULED: {
       label: "Programada",
       icon: CalendarClock,
       className: "bg-amber-100 text-amber-700 border-amber-200",
@@ -266,13 +250,15 @@ function PatientCard({
   patient,
   position,
   onPriorityChange,
+  isPriorityUpdating,
 }: {
   patient: QueuePatient;
   position: number;
   onPriorityChange: (id: number, priority: Priority) => void;
+  isPriorityUpdating: boolean;
 }) {
-  const isUrgent = patient.priority === "URGENTE";
-  const isScheduled = patient.priority === "PROGRAMADA";
+  const isUrgent = patient.priority === "URGENT";
+  const isScheduled = patient.priority === "SCHEDULED";
   return (
     <Link
       href={"/workstation/user/consultas/" + patient.id}
@@ -321,18 +307,19 @@ function PatientCard({
           onValueChange={(value) =>
             onPriorityChange(patient.id, value as Priority)
           }
+          disabled={isPriorityUpdating}
         >
           <SelectTrigger className="w-full max-w-xs text-xs h-8 py-0">
             <SelectValue placeholder="Prioridad" />
           </SelectTrigger>
           <SelectContent side="bottom" align="end">
-            <SelectItem value="URGENTE">
+            <SelectItem value="URGENT">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
                 <span>Urgente</span>
               </div>
             </SelectItem>
-            <SelectItem value="PROGRAMADA">
+            <SelectItem value="SCHEDULED">
               <div className="flex items-center gap-2">
                 <CalendarClock className="h-3.5 w-3.5 text-amber-600" />
                 <span>Programada</span>
@@ -393,14 +380,15 @@ function EmptyState({
   );
 }
 
-function invalidateQueries() {
-  queryClient.invalidateQueries({ queryKey: ["consultations-open"] });
-  queryClient.invalidateQueries({ queryKey: ["appointments-today"] });
-}
-
 export default function ColaPage() {
   const [filter, setFilter] = useState<QueueFilter>("all");
-  const [queuePatients, setQueuePatients] = useState<QueuePatient[]>([]);
+  const queryClient = useQueryClient();
+  const invalidateQueries = async () => {
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ["consultations-open"], type: "active" }),
+      queryClient.refetchQueries({ queryKey: ["appointments-today"], type: "active" }),
+    ]);
+  };
   const { data: consultations, isLoading: loadingConsultations } = useQuery({
     queryKey: ["consultations-open"],
     queryFn: () => getOpenConsultations(),
@@ -414,14 +402,19 @@ export default function ColaPage() {
     queryFn: () => getAdminUsers(),
   });
   const isLoading = loadingConsultations || loadingAppointments || loadingVets;
-  const initializedPatients = useMemo(() => {
+  const queuePatients = useMemo(() => {
     if (!consultations?.length) return [];
     return consultations.map(mapConsultationToQueuePatient);
   }, [consultations]);
-  useEffect(() => {
-    if (initializedPatients.length !== queuePatients.length)
-      setQueuePatients(initializedPatients);
-  }, [initializedPatients, queuePatients.length]);
+  const priorityMutation = useMutation({
+    mutationFn: ({ id, priority }: { id: number; priority: Priority }) =>
+      updateConsultationPriority(id, priority),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["consultations-open"], type: "active" });
+      toast.success("Prioridad actualizada");
+    },
+    onError: () => toast.error("No se pudo actualizar la prioridad"),
+  });
   const filteredPatients = useMemo(
     () => filterPatients(queuePatients, filter),
     [queuePatients, filter],
@@ -445,10 +438,8 @@ export default function ColaPage() {
     appointments?.filter((a) => a.status === "cancelled").length || 0;
   const availableRooms = Math.max(0, 4 - inProgressCount);
   const handlePriorityChange = (patientId: number, newPriority: Priority) => {
-    setQueuePatients((prev) => {
-      const updated = changePatientPriority(prev, patientId, newPriority);
-      return sortPatientsByPriority(updated);
-    });
+    if (priorityMutation.isPending) return;
+    priorityMutation.mutate({ id: patientId, priority: newPriority });
   };
   if (isLoading) {
     return (
@@ -657,6 +648,7 @@ export default function ColaPage() {
                       patient={patient}
                       position={index + 1}
                       onPriorityChange={handlePriorityChange}
+                      isPriorityUpdating={priorityMutation.isPending}
                     />
                   ))}
                 </div>

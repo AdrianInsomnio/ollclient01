@@ -13,6 +13,7 @@ export interface Sale {
   status: 'pending' | 'completed' | 'cancelled'
   paymentMethod?: string
   items: SaleItem[]
+  saleItems?: SaleItem[]
   client?: { id: string | number; name: string; documentId?: string; phone?: string }
   pet?: { id: string | number; name: string }
   createdAt?: string
@@ -48,8 +49,16 @@ export interface CreateSalePayload {
 }
 
 // GET /api/sales
-export async function getSales() {
-  return await get<Sale[]>('/sales')
+interface SalesResponse {
+  sales: Array<Sale & { items?: SaleItem[]; saleItems?: SaleItem[] }>
+}
+
+export async function getSales(): Promise<Sale[]> {
+  const response = await get<SalesResponse>('/sales')
+  return response.sales.map((sale) => ({
+    ...sale,
+    items: sale.saleItems ?? sale.items ?? [],
+  }))
 }
 
 // GET /api/sales/:id

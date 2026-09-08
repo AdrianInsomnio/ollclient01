@@ -227,6 +227,12 @@ export const assistantSidebar: MenuGroup[] = [
     items: [
       { href: "/workstation/user/clientes", label: "Clientes", icon: "Users" },
       { href: "/workstation/user/mascotas", label: "Mascotas", icon: "Users" },
+      { href: "/workstation/user/citas", label: "Agendas", icon: "Users" },
+      {
+        href: "/workstation/user/inventario",
+        label: "Inventario",
+        icon: "Users",
+      },
     ],
   },
   {

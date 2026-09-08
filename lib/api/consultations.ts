@@ -20,6 +20,7 @@ export interface Consultation {
   }
   vetId?: string
   status: 'OPEN' | 'CLOSED'
+  priority: 'URGENT' | 'SCHEDULED' | 'NORMAL'
   notes?: string
   weight?: number
   temperature?: number
@@ -127,8 +128,13 @@ export async function getConsultation(id: string): Promise<Consultation> {
 }
 
 export async function getOpenConsultations(): Promise<Consultation[]> {
-  const response = await get<ConsultationsResponse>('/consultations?status=OPEN')
+  const response = await get<ConsultationsResponse>('/consultations/queue')
   return response.consultations
+}
+
+export async function updateConsultationPriority(id: string | number, priority: Consultation['priority']): Promise<Consultation> {
+  const response = await put<ConsultationResponse>(`/consultations/${id}`, { priority })
+  return response.consultation
 }
 
 export async function openConsultation(data: CreateConsultationPayload): Promise<Consultation> {

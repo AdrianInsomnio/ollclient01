@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { createElement } from 'react'
 import { usePathname } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
 import { getSidebarForRole, MenuGroup, MenuItem, flattenMenuItems, searchMenuItems, FlattenedMenuItem, getIcon } from '@/lib/sidebar-menus'
@@ -37,7 +38,6 @@ function MenuItemComponent({ item, depth = 0 }: MenuItemProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { logout } = useAuthStore()
-  const Icon = getIcon(item.icon)
   const isActive = item.href ? pathname === item.href : false
 
   const handleClick = () => {
@@ -58,7 +58,7 @@ function MenuItemComponent({ item, depth = 0 }: MenuItemProps) {
         size='default'
       >
         <Link href={item.href || '#'} onClick={handleClick}>
-          <Icon className='w-5 h-5' />
+          {createElement(getIcon(item.icon), { className: 'w-5 h-5' })}
           <span>{item.label}</span>
         </Link>
       </SidebarMenuButton>
@@ -78,17 +78,6 @@ function MenuGroupComponent({ group }: { group: MenuGroup }) {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>
-        <button
-          className='flex w-full items-center justify-between px-2 py-1.5 text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors'
-          style={{ marginLeft: '-8px' }}
-        >
-          <div className='flex items-center gap-2'>
-            <GroupIcon className='w-5 h-5 shrink-0' />
-            <span>{group.label}</span>
-          </div>
-        </button>
-      </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           {group.items.map((item) => (

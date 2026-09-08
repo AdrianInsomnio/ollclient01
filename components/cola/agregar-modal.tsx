@@ -58,9 +58,10 @@ interface Pet {
 
 interface SearchResult {
   type: "client" | "pet"
-  id: string | number
-  name: string
-  secondaryName?: string
+  id: string | number        // Pet ID
+  clientId: string | number  // Client ID (owner)
+  name: string               // Pet name
+  secondaryName?: string     // Client name
   species?: string
   breed?: string
   ownerName?: string
@@ -116,6 +117,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
           results.push({
             type: "pet",
             id: pet.id,
+            clientId: client.id,  // FIX: Add clientId
             name: pet.name,
             secondaryName: client.name,
             species: pet.species,
@@ -158,6 +160,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
           results.push({
             type: "pet",
             id: pet.id,
+            clientId: client.id,  // FIX: Add clientId
             name: pet.name,
             secondaryName: client.name,
             species: pet.species,
@@ -176,6 +179,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
           results.push({
             type: "pet",
             id: pet.id,
+            clientId: pet.client.id,  // FIX: Add clientId from pet.client
             name: pet.name,
             secondaryName: pet.client.name,
             species: pet.species,
@@ -221,8 +225,9 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
 
     setIsSubmitting(true)
     try {
+      // FIX: Use clientId from selectedPatient, not pet ID
       await openConsultation({
-        clientId: Number(selectedPatient.id),
+        clientId: Number(selectedPatient.clientId),
         petId: selectedPatient.id,
         notes: newPatientData.motivo || undefined,
       })
@@ -305,19 +310,19 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="!w-[900px] !max-w-[calc(100%-2rem)] max-h-[90vh] overflow-hidden p-0">
+      <DialogContent className="w-225! max-w-[calc(100%-2rem)]! max-h-[90vh] overflow-hidden p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="flex items-center gap-2">
             <HeartPulse className="h-5 w-5 text-emerald-600" />
             Agregar a la Cola
           </DialogTitle>
           <DialogDescription>
-            Busca un paciente existente o registra uno nuevo para anadirlo a la sala de espera
+            Busca un paciente existente o registra uno nuevo para añadirlo a la sala de espera
           </DialogDescription>
         </DialogHeader>
 
         <div className="overflow-hidden px-6">
-          {/* Pesta�as: Buscar / Nuevo Paciente */}
+          {/* Pestañas: Buscar / Nuevo Paciente */}
           <div className="border-b bg-muted/50">
             <button
               type="button"
@@ -344,7 +349,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por nombre, dueno, telefono, documento..."
+                  placeholder="Buscar por nombre, dueño, teléfono, documento..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -396,8 +401,8 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{patient.name}</p>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              {patient.ownerName} � {patient.species}
-                              {patient.breed && <span>� {patient.breed}</span>}
+                              {patient.ownerName} - {patient.species}
+                              {patient.breed && <span>- {patient.breed}</span>}
                             </p>
                           </div>
                           {selectedPatient?.id === patient.id && (
@@ -446,8 +451,8 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                             <div className="flex-1 min-w-0">
                               <p className="font-medium truncate">{patient.name}</p>
                               <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                {patient.ownerName} � {patient.species}
-                                {patient.breed && <span>� {patient.breed}</span>}
+                                {patient.ownerName} - {patient.species}
+                                {patient.breed && <span>- {patient.breed}</span>}
                               </p>
                             </div>
                             {selectedPatient?.id === patient.id && (
@@ -494,8 +499,8 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                       <div className="flex-1">
                         <p className="font-medium">{selectedPatient.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          Dueno: {selectedPatient.ownerName} � {selectedPatient.species}
-                          {selectedPatient.breed && " � " + selectedPatient.breed}
+                          Dueño: {selectedPatient.ownerName} - {selectedPatient.species}
+                          {selectedPatient.breed && " - " + selectedPatient.breed}
                         </p>
                       </div>
                       <Button
@@ -509,7 +514,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                     <div className="mt-3 pt-3 border-t">
                       <Label className="text-sm">Motivo de consulta (opcional)</Label>
                       <Input
-                        placeholder="Ej: Consulta general, vacunacion, control..."
+                        placeholder="Ej: Consulta general, vacunación, control..."
                         value={newPatientData.motivo}
                         onChange={(e) => setNewPatientData({...newPatientData, motivo: e.target.value})}
                         className="mt-1"
@@ -524,7 +529,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
             <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
               <div className="space-y-3">
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Datos del Dueno
+                  Datos del Dueño
                 </h4>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
@@ -537,10 +542,10 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="clientPhone">Telefono *</Label>
+                    <Label htmlFor="clientPhone">Teléfono *</Label>
                     <Input
                       id="clientPhone"
-                      placeholder="Telefono"
+                      placeholder="Teléfono"
                       value={newPatientData.clientPhone}
                       onChange={(e) => setNewPatientData({...newPatientData, clientPhone: e.target.value})}
                     />
@@ -605,7 +610,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                   <Label htmlFor="motivo">Motivo</Label>
                   <Input
                     id="motivo"
-                    placeholder="Ej: Consulta general, vacunacion, control..."
+                    placeholder="Ej: Consulta general, vacunación, control..."
                     value={newPatientData.motivo}
                     onChange={(e) => setNewPatientData({...newPatientData, motivo: e.target.value})}
                   />
