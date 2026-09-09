@@ -4,7 +4,7 @@ export interface Appointment {
   id: number
   clientId: number
   petId: number
-  client?: { id: number; name: string }
+  client?: { id: number | string; name: string; phone?: string; documentId?: string }
   pet?: { id: number; name: string; species: string }
   vetId?: string
   date: string
@@ -14,6 +14,7 @@ export interface Appointment {
   notes?: string
   createdAt: string
   updatedAt: string
+  consultation?: { id: string; status: 'OPEN' | 'CLOSED' } | null
 }
 
 export interface CreateAppointmentPayload {
@@ -48,8 +49,8 @@ interface SlotsResponse {
 }
 
 export async function getAppointments(): Promise<Appointment[]> {
-  const response = await get<AppointmentsResponse>('/appointments')
-  return response.appointments
+  const response = await get<AppointmentsResponse | Appointment[]>('/appointments')
+  return Array.isArray(response) ? response : response.appointments ?? []
 }
 
 export async function getAppointment(id: string): Promise<Appointment> {
@@ -77,6 +78,18 @@ export async function updateAppointment(
   data: UpdateAppointmentPayload
 ): Promise<Appointment> {
   const response = await put<AppointmentResponse>(`/appointments/${id}`, data)
+  return response.appointment
+}
+
+export async function updateAppointmentStatus(
+  id: string,
+  status: Appointment['status'],
+  notes?: string,
+): Promise<Appointment> {
+  const response = await put<AppointmentResponse>(`/appointments/${id}/status`, {
+    status,
+    ...(notes ? { notes } : {}),
+  })
   return response.appointment
 }
 

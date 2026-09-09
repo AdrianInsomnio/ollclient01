@@ -24,9 +24,13 @@ import {
   PawPrint,
   Cake,
   Scale,
+  ChevronLeft,
+  ChevronRight,
   ArrowRight,
   Stethoscope,
 } from 'lucide-react'
+
+const PAGE_SIZE = 8
 
 // =====================================================================
 // Helpers de presentación (sin nuevos componentes)
@@ -83,7 +87,7 @@ function filterPets(pets: Pet[], query: string): Pet[] {
   if (!query.trim()) return pets
   const q = query.trim().toLowerCase()
   return pets.filter((p) => {
-    const fields = [p.name, p.species, p.breed].filter(Boolean) as string[]
+    const fields = [p.name, p.species, p.breed, p.sex, p.client?.name].filter(Boolean) as string[]
     return fields.some((f) => f.toLowerCase().includes(q))
   })
 }
@@ -192,11 +196,16 @@ export default function MascotasPage() {
   })
 
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
 
-  const visiblePets = useMemo(
+  const filteredPets = useMemo(
     () => filterPets(pets ?? [], query),
     [pets, query],
   )
+
+  const totalPages = Math.max(1, Math.ceil(filteredPets.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const visiblePets = filteredPets.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const totalCount = pets?.length ?? 0
 
@@ -240,7 +249,7 @@ export default function MascotasPage() {
             type='search'
             placeholder='Buscar por nombre, especie o raza…'
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setPage(1) }}
             className='pl-9'
           />
         </div>
@@ -305,8 +314,8 @@ export default function MascotasPage() {
           {/* Footer resumen */}
           <div className='flex flex-col items-start justify-between gap-2 border-t pt-4 text-xs text-muted-foreground sm:flex-row sm:items-center'>
             <span>
-              Mostrando {visiblePets.length} de {totalCount}{' '}
-              {totalCount === 1 ? 'mascota' : 'mascotas'}
+              Mostrando {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredPets.length)} de {filteredPets.length}{' '}
+              {filteredPets.length === 1 ? 'mascota' : 'mascotas'}
               {query ? ` para «${query}»` : ''}
             </span>
             <span className='inline-flex items-center gap-1'>
@@ -314,6 +323,17 @@ export default function MascotasPage() {
               ¿Necesitas atención? Agenda una cita desde el detalle.
             </span>
           </div>
+          {totalPages > 1 && (
+            <div className='flex items-center justify-center gap-2 pt-2'>
+              <Button variant='outline' size='sm' onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1} aria-label='Página anterior'>
+                <ChevronLeft className='h-4 w-4' />
+              </Button>
+              <span className='min-w-20 text-center text-sm text-muted-foreground'>Página {currentPage} de {totalPages}</span>
+              <Button variant='outline' size='sm' onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={currentPage === totalPages} aria-label='Página siguiente'>
+                <ChevronRight className='h-4 w-4' />
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>

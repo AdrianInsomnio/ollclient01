@@ -151,12 +151,7 @@ export const adminSidebar: MenuGroup[] = [
         href: "/workstation/admin/inventory",
         label: "Productos",
         icon: "Package",
-      },
-      {
-        href: "/workstation/admin/services",
-        label: "Servicios",
-        icon: "Briefcase",
-      },
+      }
     ],
   },
   {
@@ -222,6 +217,11 @@ export const assistantSidebar: MenuGroup[] = [
             {
         href: "/workstation/user/consultorios",
         label: "Consultorios",
+        icon: "building",
+      },
+            {
+        href: "/workstation/user/consultas",
+        label: "Consultas anteriores",
         icon: "building",
       },
     ],

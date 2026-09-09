@@ -8,6 +8,7 @@ import { useRef, useImperativeHandle, forwardRef } from 'react'
 interface SearchFormProps extends Omit<React.ComponentProps<'form'>, 'onChange'> {
   value?: string
   onChange?: (value: string) => void
+  onArrowDown?: () => void
 }
 
 // Custom ref type for the search form
@@ -18,7 +19,7 @@ export interface SearchFormRef {
 }
 
 export const SearchForm = forwardRef<SearchFormRef, SearchFormProps>(
-  ({ value, onChange, ...props }, ref) => {
+  ({ value, onChange, onArrowDown, ...props }, ref) => {
     const inputElementRef = useRef<HTMLInputElement>(null)
 
     useImperativeHandle(ref, () => ({
@@ -43,6 +44,12 @@ export const SearchForm = forwardRef<SearchFormRef, SearchFormProps>(
               className='pl-8 pr-8'
               value={value}
               onChange={(e) => onChange?.(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  onArrowDown?.()
+                }
+              }}
               ref={inputElementRef}
             />
             <Search className='pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 opacity-50 select-none' />

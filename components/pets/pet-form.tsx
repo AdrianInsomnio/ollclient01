@@ -25,6 +25,7 @@ export function PetForm({ pet, clientId: initialClientId, onSuccess }: PetFormPr
 
   const [formData, setFormData] = useState<CreatePetPayload>({
     name: pet?.name || '',
+    sex: pet?.sex || '',
     species: pet?.species || '',
     breed: pet?.breed || '',
     birthDate: pet?.birthDate || undefined,
@@ -103,6 +104,20 @@ export function PetForm({ pet, clientId: initialClientId, onSuccess }: PetFormPr
                 required
                 placeholder='Perro, Gato, etc.'
               />
+            </div>
+
+            <div className='space-y-2'>
+              <label htmlFor='sex' className='text-sm font-medium'>Sexo</label>
+              <select
+                id='sex'
+                value={formData.sex || ''}
+                onChange={(e) => handleChange('sex', e.target.value || undefined)}
+                className='flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
+              >
+                <option value=''>Seleccionar</option>
+                <option value='Macho'>Macho</option>
+                <option value='Hembra'>Hembra</option>
+              </select>
             </div>
           </div>
 

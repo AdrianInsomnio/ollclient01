@@ -1,16 +1,19 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { getClient, getClientHistory } from '@/lib/api/clients'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Phone, Mail, MapPin, User, PawPrint, Edit } from 'lucide-react'
+import { EditClientDialog } from '@/components/clients/edit-client-dialog'
 
 export default function ClientDetailPage() {
   const params = useParams()
   const clientId = params.id as string
+  const [editOpen, setEditOpen] = useState(false)
 
   const { data: client, isLoading: loadingClient } = useQuery({
     queryKey: ['client', clientId],
@@ -45,9 +48,7 @@ export default function ClientDetailPage() {
         <Link href='/workstation/user/clientes' className='inline-flex'>
           <Button variant='ghost' size='sm'><ArrowLeft className='h-4 w-4 mr-2' />Volver</Button>
         </Link>
-        <Link href={'/workstation/user/clientes/editar/' + clientId}>
-          <Button size='sm'><Edit className='h-4 w-4 mr-2' />Editar</Button>
-        </Link>
+        <Button size='sm' onClick={() => setEditOpen(true)}><Edit className='h-4 w-4 mr-2' />Editar</Button>
       </div>
 
       <h1 className='text-2xl font-bold'>{client.name}</h1>
@@ -118,6 +119,8 @@ export default function ClientDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <EditClientDialog client={client} open={editOpen} onOpenChange={setEditOpen} />
     </div>
   )
 }

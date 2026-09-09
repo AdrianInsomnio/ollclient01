@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
@@ -42,6 +42,7 @@ import {
   ShoppingBag,
   Microscope,
 } from 'lucide-react'
+import { EditPetDialog } from '@/components/pets/edit-pet-dialog'
 
 // =====================================================================
 // Helpers de presentación (sin nuevos componentes)
@@ -250,6 +251,7 @@ function TimelineRow({ item }: { item: PetHistoryItem }) {
 export default function PetDetailPage() {
   const params = useParams()
   const petId = params.id as string
+  const [editOpen, setEditOpen] = useState(false)
 
   const { data: pet, isLoading: loadingPet } = useQuery({
     queryKey: ['pet', petId],
@@ -399,14 +401,10 @@ export default function PetDetailPage() {
                   Nueva Consulta
                 </Button>
               </Link>
-              <Link
-                href={`/workstation/user/mascotas/editar/${petId}`}
-              >
-                <Button variant="outline">
-                  <Edit className="mr-2 h-4 w-4" />
-                  Editar
-                </Button>
-              </Link>
+              <Button variant="outline" onClick={() => setEditOpen(true)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Editar
+              </Button>
               <Link
                 href={`/workstation/user/mascotas/${petId}/carnet`}
               >
@@ -546,6 +544,12 @@ export default function PetDetailPage() {
         </Link>
         <span className="text-xs text-muted-foreground">ID #{pet.id}</span>
       </div>
+
+      <EditPetDialog
+        pet={pet}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+      />
     </div>
   )
 }

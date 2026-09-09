@@ -68,6 +68,8 @@ export interface Sale {
 export interface CreateConsultationPayload {
   clientId: string | number
   petId: string | number
+  appointmentId?: string | number
+  priority?: Consultation['priority']
   notes?: string
 }
 

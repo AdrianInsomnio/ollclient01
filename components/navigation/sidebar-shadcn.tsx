@@ -32,9 +32,11 @@ import { SearchForm, SearchFormRef } from './search-form'
 interface MenuItemProps {
   item: FlattenedMenuItem
   depth?: number
+  linkRef?: React.Ref<HTMLAnchorElement>
+  onLinkKeyDown?: React.KeyboardEventHandler<HTMLAnchorElement>
 }
 
-function MenuItemComponent({ item, depth = 0 }: MenuItemProps) {
+function MenuItemComponent({ item, depth = 0, linkRef, onLinkKeyDown }: MenuItemProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { logout } = useAuthStore()
@@ -57,7 +59,7 @@ function MenuItemComponent({ item, depth = 0 }: MenuItemProps) {
         variant='default'
         size='default'
       >
-        <Link href={item.href || '#'} onClick={handleClick}>
+        <Link ref={linkRef} href={item.href || '#'} onClick={handleClick} onKeyDown={onLinkKeyDown}>
           {createElement(getIcon(item.icon), { className: 'w-5 h-5' })}
           <span>{item.label}</span>
         </Link>
@@ -108,6 +110,7 @@ export default function SidebarShadcn() {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const searchInputRef = useRef<SearchFormRef>(null)
+  const searchResultRefs = useRef<Array<HTMLAnchorElement | null>>([])
 
   // Flatten menu items for searching
   const flattenedItems = useMemo(() => flattenMenuItems(menuGroups), [menuGroups])
@@ -154,11 +157,35 @@ export default function SidebarShadcn() {
     setSearchQuery(value)
   }, [])
 
+  const focusFirstSearchResult = useCallback(() => {
+    if (searchResults && searchResults.length > 0) {
+      searchResultRefs.current[0]?.focus()
+    }
+  }, [searchResults])
+
+  const handleSearchResultKeyDown = useCallback((index: number, event: React.KeyboardEvent<HTMLAnchorElement>) => {
+    if (!searchResults || searchResults.length === 0) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      searchResultRefs.current[Math.min(index + 1, searchResults.length - 1)]?.focus()
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (index === 0) searchInputRef.current?.focus()
+      else searchResultRefs.current[index - 1]?.focus()
+    }
+  }, [searchResults])
+
   // Transform user for NavUser component
   const navUser = user ? {
     username: user.username,
     email: user.email,
     avatar: '', // User type doesn't have avatar, use empty string for fallback
+    role: user.role,
+    isActive: user.isActive,
+    organizationId: user.organizationId,
+    lastLogin: user.lastLogin,
+    createdAt: user.createdAt,
+    clinics: user.clinics,
   } : {
     username: '',
     email: '',
@@ -178,6 +205,7 @@ export default function SidebarShadcn() {
           ref={searchInputRef}
           value={searchQuery}
           onChange={handleSearchChange}
+          onArrowDown={focusFirstSearchResult}
         />
       </SidebarHeader>
       <SidebarContent>
@@ -187,8 +215,8 @@ export default function SidebarShadcn() {
               {searchResults !== null ? (
                 // Search results: render flat list without group labels
                 searchResults.length > 0 ? (
-                  searchResults.map((item) => (
-                    <MenuItemComponent key={item.href || item.label} item={item} depth={item.depth} />
+                  searchResults.map((item, index) => (
+                    <MenuItemComponent key={item.href || item.label} item={item} depth={item.depth} linkRef={(element) => { searchResultRefs.current[index] = element }} onLinkKeyDown={(event) => handleSearchResultKeyDown(index, event)} />
                   ))
                 ) : (
                   <div className='px-3 py-4 text-center text-sm text-muted-foreground'>

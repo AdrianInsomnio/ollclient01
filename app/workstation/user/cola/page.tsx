@@ -39,6 +39,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import { AgregarAColaModal } from "@/components/cola/agregar-modal";
+import { QuickActions } from "@/components/cola/quick-actions";
 import { toast } from "sonner";
 
 interface Consultation {
@@ -665,24 +666,7 @@ export default function ColaPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
-              <Link href="/workstation/user/clientes/buscar">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start gap-3"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  <span>Nuevo Cliente</span>
-                </Button>
-              </Link>
-              <Link href="/workstation/user/mascotas/nuevo">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start gap-3"
-                >
-                  <HeartPulse className="h-4 w-4" />
-                  <span>Nueva Mascota</span>
-                </Button>
-              </Link>
+              <QuickActions />
               <Link href="/workstation/user/consultas">
                 <Button
                   variant="outline"

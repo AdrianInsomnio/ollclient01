@@ -9,7 +9,11 @@ export interface User {
   username: string
   email: string
   role: UserRole
+  isActive?: boolean
   organizationId: number
+  lastLogin?: string | null
+  createdAt?: string
+  updatedAt?: string
   clinics?: Array<{ id: number; name: string }>
 }
 
