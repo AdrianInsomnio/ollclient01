@@ -1,4 +1,4 @@
-import { get, post } from '../api-client'
+import { get, post, put, patch } from '../api-client'
 
 export interface Service {
   id: number
@@ -6,7 +6,10 @@ export interface Service {
   description?: string
   price: number
   duration?: number
+  category?: string | null
   isActive: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface ServiceFilters {
@@ -34,9 +37,22 @@ export async function getServices(filters?: ServiceFilters): Promise<Service[]> 
 }
 
 export async function getServiceById(id: number) {
-  return await get<Service>(`/services/${id}`)
+  const response = await get<Service | { service: Service }>(`/services/${id}`)
+  return 'service' in response ? response.service : response
 }
 
-export async function createService(data: Partial<Service>) {
+export type ServicePayload = Pick<Service, 'name' | 'price' | 'isActive'> & Partial<Pick<Service, 'description' | 'duration' | 'category'>>
+
+export async function createService(data: ServicePayload) {
   return await post<Service>('/services', data)
+}
+
+export async function updateService(id: number, data: Partial<ServicePayload>) {
+  const response = await put<Service | { service: Service }>(`/services/${id}`, data)
+  return 'service' in response ? response.service : response
+}
+
+export async function updateServiceStatus(id: number, isActive: boolean) {
+  const response = await patch<{ service: Service }>(`/services/${id}/status`, { isActive })
+  return response.service
 }

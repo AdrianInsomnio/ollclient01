@@ -1,5 +1,5 @@
 
-import { get, post, put, del } from '../api-client'
+import { get, post, put, patch, del } from '../api-client'
 
 export interface Consultation {
   id: string
@@ -21,6 +21,15 @@ export interface Consultation {
   vetId?: string
   status: 'OPEN' | 'CLOSED'
   priority: 'URGENT' | 'SCHEDULED' | 'NORMAL'
+  consultorioId?: number | null
+  startAt?: string | null
+  endAt?: string | null
+  consultorio?: {
+    id: number
+    name: string
+    status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE'
+    size?: string | null
+  } | null
   notes?: string
   weight?: number
   temperature?: number
@@ -105,8 +114,8 @@ interface OpenConsultationResponse {
 
 export interface CloseConsultationResponse {
   consultation: Consultation
-  sale: Sale
-  printData: unknown
+  sale: Sale | null
+  printData: unknown | null
 }
 
 // Simple UUID v4 generator (sufficient for idempotency key)
@@ -130,6 +139,22 @@ export async function getConsultation(id: string): Promise<Consultation> {
 export async function getOpenConsultations(): Promise<Consultation[]> {
   const response = await get<ConsultationsResponse>('/consultations/queue')
   return response.consultations
+}
+
+export interface ConsultorioAssignmentPayload {
+  consultorioId: number
+  startAt: string
+  endAt: string
+}
+
+export async function assignConsultorio(id: string | number, data: ConsultorioAssignmentPayload): Promise<Consultation> {
+  const response = await patch<ConsultationResponse>(`/consultations/${id}/consultorio`, data)
+  return response.consultation
+}
+
+export async function releaseConsultorio(id: string | number): Promise<Consultation> {
+  const response = await del<ConsultationResponse>(`/consultations/${id}/consultorio`)
+  return response.consultation
 }
 
 export async function updateConsultationPriority(id: string | number, priority: Consultation['priority']): Promise<Consultation> {

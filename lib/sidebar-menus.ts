@@ -148,7 +148,7 @@ export const adminSidebar: MenuGroup[] = [
     icon: "Package",
     items: [
       {
-        href: "/workstation/admin/products",
+        href: "/workstation/admin/inventory",
         label: "Productos",
         icon: "Package",
       },
@@ -218,6 +218,11 @@ export const assistantSidebar: MenuGroup[] = [
         href: "/workstation/user/cola",
         label: "Cola de Atención",
         icon: "Calendar",
+      },
+            {
+        href: "/workstation/user/consultorios",
+        label: "Consultorios",
+        icon: "building",
       },
     ],
   },

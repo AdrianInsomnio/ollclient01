@@ -17,12 +17,12 @@ export default function AdminLayout({
 
   useEffect(() => {
     if (checking) return
-    if (!isAuthenticated || user?.role !== 'ADMIN') {
+    if (!isAuthenticated || !['ADMIN', 'SUPER_ADMIN'].includes(user?.role ?? '')) {
       router.replace('/login')
     }
   }, [user, isAuthenticated, checking, router])
 
-  if (checking || !isAuthenticated || user?.role !== 'ADMIN') {
+  if (checking || !isAuthenticated || !['ADMIN', 'SUPER_ADMIN'].includes(user?.role ?? '')) {
     return null
   }
 

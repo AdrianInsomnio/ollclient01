@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
 import Sidebar from '@/components/navigation/sidebar-shadcn'
 import { UserNav } from '@/components/navigation/user-nav'
@@ -14,16 +15,19 @@ export default function UserLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const { user, isAuthenticated, checking } = useAuthStore()
+  const isConsultoriosForVeterinarian = pathname === '/workstation/user/consultorios' && user?.role === 'VET'
+  const hasWorkspaceAccess = user?.role === 'USER' || isConsultoriosForVeterinarian
 
   useEffect(() => {
     if (checking) return
-    if (!isAuthenticated || user?.role !== 'USER') {
+    if (!isAuthenticated || !hasWorkspaceAccess) {
       router.replace('/login')
     }
-  }, [user, isAuthenticated, checking, router])
+  }, [user, isAuthenticated, checking, hasWorkspaceAccess, router])
 
-  if (checking || !isAuthenticated || user?.role !== 'USER') {
+  if (checking || !isAuthenticated || !hasWorkspaceAccess) {
     return null
   }
 

@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   addDiagnosis,
   addPrescription,
   addTreatment,
+  closeConsultation,
   getConsultation,
   updateConsultationClinical,
   type UpdateClinicalPayload,
@@ -108,6 +110,42 @@ export default function VetConsultationDetailPage() {
     useState<PaymentMethodOption>("CASH")
   const [itemDialogOpen, setItemDialogOpen] = useState(false)
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false)
+
+  const closeMutation = useMutation({
+    mutationFn: () => closeConsultation(consultationId, {
+      items: cart.map((item) => {
+        const payload = itemToSalePayload(item)
+        return {
+          itemType: payload.itemType,
+          itemId: payload.itemId,
+          quantity: payload.quantity,
+          ...(item.kind === "service"
+            ? {
+                nameSnapshot: payload.nameSnapshot,
+                priceSnapshot: payload.priceSnapshot,
+              }
+            : {}),
+        }
+      }),
+      discount: discountPercent,
+      paymentMethod,
+    }),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["consultation", consultationId],
+      })
+      await queryClient.invalidateQueries({ queryKey: ["consultations"] })
+      await queryClient.invalidateQueries({ queryKey: ["consultations-open"] })
+      setConfirmCloseOpen(false)
+      setCart([])
+      setDiscountPercent(0)
+      setSaleNotes("")
+      toast.success(
+        result.sale ? "Atención finalizada y venta registrada." : "Atención finalizada correctamente.",
+      )
+    },
+    onError: (err) => workspaceToast.clinicalError(err),
+  })
 
   const consultation = consultationQuery.data
   const isClosed = consultation?.status === "CLOSED"
@@ -324,6 +362,7 @@ export default function VetConsultationDetailPage() {
             : undefined
         }
         onFinalize={() => setConfirmCloseOpen(true)}
+        finalizing={closeMutation.isPending}
       />
 
       <PetClientCard
@@ -415,11 +454,11 @@ export default function VetConsultationDetailPage() {
           <DialogHeader>
             <DialogTitle>Finalizar atencion</DialogTitle>
             <DialogDescription>
-              {cart.length > 0
-                ? "Hay items cargados sin cobrar. Cancela la venta o cobrala antes de finalizar."
-                : isClosed
+              {isClosed
                 ? "La consulta ya esta finalizada."
-                : "Esta accion cierra la consulta. La atencion medica queda registrada independientemente del cobro. (Nota: el backend actual exige items para usar /close; este flujo quedara habilitado cuando se exponga el endpoint de cierre sin venta.)"}
+                : cart.length > 0
+                ? "La atención se finalizará y se registrará la venta con los items cargados."
+                : "La atención se finalizará sin registrar una venta."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -433,12 +472,11 @@ export default function VetConsultationDetailPage() {
             <Button
               type="button"
               onClick={() => {
-                setConfirmCloseOpen(false)
-                workspaceToast.finalizeWithoutSalePending()
+                closeMutation.mutate()
               }}
-              disabled={cart.length > 0 || isClosed}
+              disabled={isClosed || closeMutation.isPending}
             >
-              Si, finalizar
+              {closeMutation.isPending ? "Finalizando..." : "Sí, finalizar"}
             </Button>
           </DialogFooter>
         </DialogContent>

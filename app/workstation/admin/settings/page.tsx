@@ -1,6 +1,9 @@
 'use client'
 
 import { ChangePasswordForm } from '@/components/security/change-password-form'
+import Link from 'next/link'
+import { Building2, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 export default function AdminSettingsPage() {
   return (
@@ -49,6 +52,21 @@ export default function AdminSettingsPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className='flex items-center justify-between gap-4 rounded-lg border bg-white p-5 shadow-sm'>
+        <div className='flex items-start gap-3'>
+          <div className='mt-0.5 flex size-9 items-center justify-center rounded-lg bg-gray-100 text-gray-700'>
+            <Building2 className='size-4' />
+          </div>
+          <div>
+            <h3 className='font-semibold'>Consultorios y equipamiento</h3>
+            <p className='mt-1 text-sm text-gray-600'>Administra los espacios y recursos disponibles de la clínica.</p>
+          </div>
+        </div>
+        <Button asChild variant='outline' size='sm'>
+          <Link href='/workstation/admin/settings/consultorios'>Gestionar <ChevronRight /></Link>
+        </Button>
       </div>
 
       <ChangePasswordForm />

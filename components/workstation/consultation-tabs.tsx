@@ -87,10 +87,10 @@ export function ConsultationTabs(props: ConsultationTabsProps) {
         </TabsList>
       </div>
 
-      <TabsContent value="consulta" className="mt-0">
+      <TabsContent value="consulta" forceMount className="mt-0">
         <ConsultationForm {...form} />
       </TabsContent>
-      <TabsContent value="diagnosticos" className="mt-0">
+      <TabsContent value="diagnosticos" forceMount className="mt-0">
         <ClinicalListTab
           title="Diagnosticos"
           dialogDescription="Anada un nuevo diagnostico para esta consulta."
@@ -99,7 +99,7 @@ export function ConsultationTabs(props: ConsultationTabsProps) {
           onAdd={onAddDiagnosis}
         />
       </TabsContent>
-      <TabsContent value="tratamientos" className="mt-0">
+      <TabsContent value="tratamientos" forceMount className="mt-0">
         <ClinicalListTab
           title="Tratamientos"
           dialogDescription="Anada un nuevo tratamiento para esta consulta."
@@ -108,7 +108,7 @@ export function ConsultationTabs(props: ConsultationTabsProps) {
           onAdd={onAddTreatment}
         />
       </TabsContent>
-      <TabsContent value="recetas" className="mt-0">
+      <TabsContent value="recetas" forceMount className="mt-0">
         <ClinicalListTab
           title="Recetas"
           dialogDescription="Anada una nueva receta para esta consulta."
@@ -117,7 +117,7 @@ export function ConsultationTabs(props: ConsultationTabsProps) {
           onAdd={onAddPrescription}
         />
       </TabsContent>
-      <TabsContent value="archivos" className="mt-0">
+      <TabsContent value="archivos" forceMount className="mt-0">
         <FilesTab consultationId={consultationId} />
       </TabsContent>
     </Tabs>

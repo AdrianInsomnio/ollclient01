@@ -105,17 +105,17 @@ export function createConsultationPrintPayload(response: CloseConsultationRespon
       createdAt: printData.consultation?.date || consultation.createdAt,
       closedAt: consultation.updatedAt,
     },
-    items: ((printData.items || sale.items || []) as PrintableItem[]).map((item) => ({
+    items: ((printData.items || sale?.items || []) as PrintableItem[]).map((item) => ({
       description: item.name || item.description || item.nameSnapshot || 'Item',
       quantity: item.quantity || 1,
       unitPrice: item.price ?? item.priceSnapshot ?? 0,
       total: item.subtotal ?? (item.price ?? item.priceSnapshot ?? 0) * (item.quantity || 1),
     })),
-    subtotal: printData.subtotal ?? sale.subtotal,
-    tax: printData.tax ?? sale.tax,
-    total: printData.total ?? sale.total,
-    payments: printData.payments || [{ method: printData.paymentMethod || sale.paymentMethod, amount: sale.total }],
-    number: printData.saleId || sale.id,
+    subtotal: printData.subtotal ?? sale?.subtotal ?? 0,
+    tax: printData.tax ?? sale?.tax ?? 0,
+    total: printData.total ?? sale?.total ?? 0,
+    payments: printData.payments || (sale ? [{ method: printData.paymentMethod || sale.paymentMethod || 'Sin pago', amount: sale.total }] : []),
+    number: printData.saleId || sale?.id,
     footer: {
       message: 'Gracias por su visita',
     },
