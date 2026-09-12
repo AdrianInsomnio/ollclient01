@@ -2,10 +2,18 @@
 import { get, post, put, patch, del } from '../api-client'
 
 export interface Consultation {
-  id: string
+  id: string | number
   clientId: string | number
   petId: string | number
   appointmentId?: string | number | null
+  appointment?: {
+    id: string | number
+    date: string
+    duration: number
+    serviceType?: string
+    notes?: string
+    status?: string
+  } | null
   client?: {
     id: string | number
     name: string
@@ -43,6 +51,7 @@ export interface Consultation {
   totalFee?: number
   createdAt: string
   updatedAt: string
+  closedAt?: string | null
 }
 
 export interface ConsultationItem {
@@ -157,6 +166,10 @@ export async function assignConsultorio(id: string | number, data: ConsultorioAs
 export async function releaseConsultorio(id: string | number): Promise<Consultation> {
   const response = await del<ConsultationResponse>(`/consultations/${id}/consultorio`)
   return response.consultation
+}
+
+export async function deleteConsultation(id: string | number): Promise<void> {
+  await del(`/consultations/${id}`)
 }
 
 export async function updateConsultationPriority(id: string | number, priority: Consultation['priority']): Promise<Consultation> {

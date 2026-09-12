@@ -12,12 +12,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Calendar, User, PawPrint, Plus } from "lucide-react";
 
+const pad = (value: number) => String(value).padStart(2, "0");
+
+function getLocalDateTime() {
+  const now = new Date();
+  return {
+    date: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+    time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+  };
+}
+
+function toIsoFromLocalDateTime(date: string, time: string) {
+  // datetime-local values have no timezone. Interpret them in the user's
+  // system timezone before sending an unambiguous instant to the API.
+  return new Date(`${date}T${time}:00`).toISOString();
+}
+
 export default function NuevaCitaPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [clientId, setClientId] = useState("");
   const [petId, setPetId] = useState("");
-  const [date, setDate] = useState("");
+  const [{ date: initialDate, time: initialTime }] = useState(getLocalDateTime);
+  const [date, setDate] = useState(initialDate);
+  const [time, setTime] = useState(initialTime);
   const [duration, setDuration] = useState("");
   const [serviceType, setServiceType] = useState("");
   const [notes, setNotes] = useState("");
@@ -45,7 +63,7 @@ export default function NuevaCitaPage() {
       const appointment = await createAppointment({
         clientId: Number(clientId),
         petId: Number(petId),
-        date,
+        date: toIsoFromLocalDateTime(date, time),
         duration: Number(duration),
         serviceType,
         notes,
@@ -140,6 +158,10 @@ export default function NuevaCitaPage() {
                 <div className="space-y-2">
                   <label htmlFor="date" className="text-sm font-medium">Fecha *</label>
                   <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="time" className="text-sm font-medium">Hora *</label>
+                  <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="duration" className="text-sm font-medium">Duración (min) *</label>

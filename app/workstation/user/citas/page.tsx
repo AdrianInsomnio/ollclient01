@@ -16,6 +16,8 @@ import {
   Stethoscope,
   UserRound,
   X,
+  Pencil,
+  CalendarClock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +43,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { getClients, type Client } from "@/lib/api/clients";
 import {
   createAppointment,
+  deleteAppointment,
   getAppointments,
+  updateAppointment,
   updateAppointmentStatus,
   type Appointment,
 } from "@/lib/api/appointments";
@@ -52,6 +56,7 @@ import { useAuthStore } from "@/lib/auth-store";
 
 type ViewMode = "day" | "week" | "month";
 type AppointmentStatus = Appointment["status"];
+const viewModeStorageKey = "appointments-view-mode";
 const statusLabels: Record<AppointmentStatus, string> = {
   pending: "Pendiente",
   confirmed: "Confirmada",
@@ -64,6 +69,10 @@ const statusClasses: Record<AppointmentStatus, string> = {
   completed: "border-emerald-200 bg-emerald-50 text-emerald-800",
   cancelled: "border-red-200 bg-red-50 text-red-800",
 };
+const getEffectiveStatus = (appointment: Appointment): AppointmentStatus =>
+  appointment.consultation?.status === "CLOSED"
+    ? "completed"
+    : appointment.status;
 const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const parseDateKey = (key: string) => {
@@ -83,10 +92,25 @@ const endOfWeek = (date: Date) => {
   result.setHours(23, 59, 59, 999);
   return result;
 };
+const endOfDay = (date: Date) => {
+  const result = new Date(date);
+  result.setHours(23, 59, 59, 999);
+  return result;
+};
 const formatDate = (date: Date, options: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat("es-UY", options).format(date);
 const formatTime = (value: string) =>
   formatDate(new Date(value), { hour: "2-digit", minute: "2-digit" });
+const pad = (value: number) => String(value).padStart(2, "0");
+const localDateTimeParts = (value: string) => {
+  const date = new Date(value);
+  return {
+    date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  };
+};
+const toIsoFromLocalDateTime = (date: string, time: string) =>
+  new Date(`${date}T${time}:00`).toISOString();
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "No se pudo completar la operación.";
 
@@ -94,11 +118,19 @@ export default function CitasPage() {
   const queryClient = useQueryClient();
   const role = useAuthStore((state) => state.user?.role);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [view, setView] = useState<ViewMode>("week");
+  const [view, setView] = useState<ViewMode>(() => {
+    if (typeof window === "undefined") return "week";
+    const storedView = window.localStorage.getItem(viewModeStorageKey);
+    return storedView === "day" || storedView === "week" || storedView === "month"
+      ? storedView
+      : "week";
+  });
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<AppointmentStatus | "all">("all");
   const [serviceFilter, setServiceFilter] = useState("all");
   const [newOpen, setNewOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] =
+    useState<Appointment | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const appointmentsQuery = useQuery({
@@ -110,9 +142,15 @@ export default function CitasPage() {
     queryKey: ["services", "active"],
     queryFn: () => getServices({ isActive: true }),
   });
-  const appointments = appointmentsQuery.data ?? [];
-  const clients = clientsQuery.data ?? [];
-  const services = servicesQuery.data ?? [];
+  const appointments = useMemo(
+    () => appointmentsQuery.data ?? [],
+    [appointmentsQuery.data],
+  );
+  const clients = useMemo(() => clientsQuery.data ?? [], [clientsQuery.data]);
+  const services = useMemo(
+    () => servicesQuery.data ?? [],
+    [servicesQuery.data],
+  );
   const clientById = useMemo(
     () => new Map(clients.map((client) => [Number(client.id), client])),
     [clients],
@@ -122,7 +160,7 @@ export default function CitasPage() {
       view === "day"
         ? {
             start: parseDateKey(dateKey(selectedDate)),
-            end: parseDateKey(dateKey(selectedDate)),
+            end: endOfDay(parseDateKey(dateKey(selectedDate))),
           }
         : view === "week"
           ? { start: startOfWeek(selectedDate), end: endOfWeek(selectedDate) }
@@ -164,7 +202,7 @@ export default function CitasPage() {
           date >= range.start &&
           date <= range.end &&
           matchesSearch &&
-          (status === "all" || appointment.status === status) &&
+          (status === "all" || getEffectiveStatus(appointment) === status) &&
           (serviceFilter === "all" || appointment.serviceType === serviceFilter)
         );
       })
@@ -177,10 +215,13 @@ export default function CitasPage() {
   const counts = useMemo(
     () => ({
       pending: todayAppointments.filter(
-        (item) => item.status === "pending" || item.status === "confirmed",
+        (item) =>
+          getEffectiveStatus(item) === "pending" ||
+          getEffectiveStatus(item) === "confirmed",
       ).length,
-      completed: todayAppointments.filter((item) => item.status === "completed")
-        .length,
+      completed: todayAppointments.filter(
+        (item) => getEffectiveStatus(item) === "completed",
+      ).length,
     }),
     [todayAppointments],
   );
@@ -217,6 +258,10 @@ export default function CitasPage() {
         next.setDate(next.getDate() + (view === "week" ? amount * 7 : amount));
       return next;
     });
+  const changeView = (nextView: ViewMode) => {
+    setView(nextView);
+    window.localStorage.setItem(viewModeStorageKey, nextView);
+  };
   const dateTitle =
     view === "day"
       ? formatDate(selectedDate, {
@@ -264,7 +309,8 @@ export default function CitasPage() {
           tone="emerald"
         />
       </div>
-      <Card>
+      <div className="grid gap-x-6 gap-y-6 xl:grid-cols-[260px_minmax(0,1fr)] xl:items-start xl:gap-y-0">
+      <Card className="sticky top-2 z-30 self-start rounded-b-none border-b-0 shadow-sm xl:col-start-2 xl:row-start-1">
         <CardContent className="space-y-4 p-4 sm:p-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="relative min-w-0 flex-1 xl:max-w-md">
@@ -277,7 +323,7 @@ export default function CitasPage() {
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              <div className="inline-flex rounded-lg border bg-muted/30 p-1">
+              <div className="sticky top-2 z-30 inline-flex rounded-lg border bg-background/95 p-1 shadow-sm backdrop-blur supports-backdrop-filter:bg-background/80">
                 {(
                   [
                     ["day", "Día"],
@@ -288,7 +334,7 @@ export default function CitasPage() {
                   <button
                     key={value}
                     type="button"
-                    onClick={() => setView(value)}
+                    onClick={() => changeView(value)}
                     className={`rounded-md px-3 py-1.5 text-sm transition-colors ${view === value ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                   >
                     {label}
@@ -341,8 +387,8 @@ export default function CitasPage() {
           </div>
         </CardContent>
       </Card>
-      <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="space-y-4">
+      <div className="contents">
+        <aside className="space-y-4 xl:sticky xl:top-2 xl:col-start-1 xl:row-start-1 xl:row-span-2 xl:self-start">
           <MiniCalendar
             selectedDate={selectedDate}
             appointments={appointments}
@@ -380,7 +426,7 @@ export default function CitasPage() {
             </CardContent>
           </Card>
         </aside>
-        <Card>
+        <Card className="rounded-t-none border-t-2 border-t-primary/10 xl:col-start-2 xl:row-start-2">
           <CardHeader className="border-b">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -456,6 +502,7 @@ export default function CitasPage() {
                     }
                     onStart={() => startMutation.mutate(appointment)}
                     onCancel={() => setCancelTarget(appointment)}
+                    onSelect={() => setSelectedAppointment(appointment)}
                     starting={
                       startMutation.isPending &&
                       startMutation.variables?.id === appointment.id
@@ -472,6 +519,7 @@ export default function CitasPage() {
           </CardContent>
         </Card>
       </div>
+      </div>
       <NewAppointmentDialog
         open={newOpen}
         onOpenChange={setNewOpen}
@@ -481,6 +529,23 @@ export default function CitasPage() {
         onCreated={() => {
           void queryClient.invalidateQueries({ queryKey: ["appointments"] });
           void queryClient.invalidateQueries({ queryKey: ["pets"] });
+        }}
+      />
+      <AppointmentDetailsDialog
+        appointment={selectedAppointment}
+        clients={clients}
+        client={
+          selectedAppointment
+            ? selectedAppointment.client ??
+              clientById.get(Number(selectedAppointment.clientId))
+            : undefined
+        }
+        onOpenChange={(open) => {
+          if (!open) setSelectedAppointment(null);
+        }}
+        onChanged={() => {
+          void queryClient.invalidateQueries({ queryKey: ["appointments"] });
+          setSelectedAppointment(null);
         }}
       />
       <Dialog
@@ -677,6 +742,7 @@ function AppointmentCard({
   client,
   onStart,
   onCancel,
+  onSelect,
   starting,
   canCancel,
 }: {
@@ -689,14 +755,30 @@ function AppointmentCard({
   };
   onStart: () => void;
   onCancel: () => void;
+  onSelect: () => void;
   starting: boolean;
   canCancel: boolean;
 }) {
   const consultation = appointment.consultation;
   const isCancelled = appointment.status === "cancelled";
+  const effectiveStatus = getEffectiveStatus(appointment);
+  const isCompleted = effectiveStatus === "completed";
   return (
     <div
-      className={`rounded-xl border p-4 transition-colors ${isCancelled ? "bg-muted/30 opacity-70" : "bg-background hover:border-primary/30 hover:shadow-sm"}`}
+      role="button"
+      tabIndex={0}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest("button, a")) return;
+        onSelect();
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`rounded-xl border p-4 transition-colors ${isCancelled ? "bg-muted/30 opacity-70" : isCompleted ? "border-emerald-200 bg-emerald-50/60 hover:border-emerald-300" : "bg-background hover:border-primary/30 hover:shadow-sm"}`}
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-start">
         <div className="flex min-w-24 items-center gap-2 text-sm font-semibold">
@@ -710,9 +792,9 @@ function AppointmentCard({
             </h3>
             <Badge
               variant="outline"
-              className={statusClasses[appointment.status]}
+              className={statusClasses[effectiveStatus]}
             >
-              {statusLabels[appointment.status]}
+              {statusLabels[effectiveStatus]}
             </Badge>
             {consultation?.status === "OPEN" && (
               <Badge variant="success">En curso</Badge>
@@ -751,13 +833,13 @@ function AppointmentCard({
             >
               Continuar
             </Button>
-          ) : appointment.status !== "completed" && !isCancelled ? (
+          ) : !isCompleted && !isCancelled ? (
             <Button size="sm" onClick={onStart} disabled={starting}>
               {starting && <Loader2 className="mr-2 size-4 animate-spin" />}
               Iniciar consulta
             </Button>
           ) : null}
-          {canCancel && !isCancelled && appointment.status !== "completed" && (
+          {canCancel && !isCancelled && !isCompleted && (
             <Button
               size="sm"
               variant="ghost"
@@ -772,6 +854,348 @@ function AppointmentCard({
     </div>
   );
 }
+
+function AppointmentDetailsDialog({
+  appointment,
+  clients,
+  client,
+  onOpenChange,
+  onChanged,
+}: {
+  appointment: Appointment | null;
+  clients: Client[];
+  client?: {
+    id: number | string;
+    name: string;
+    phone?: string;
+    documentId?: string;
+  };
+  onOpenChange: (open: boolean) => void;
+  onChanged: () => void;
+}) {
+  const [editMode, setEditMode] = useState(false);
+  const [editClientId, setEditClientId] = useState(() => appointment ? String(appointment.clientId) : "");
+  const [editPetId, setEditPetId] = useState(() => appointment ? String(appointment.petId) : "");
+  const [editDuration, setEditDuration] = useState(() => appointment ? String(appointment.duration ?? 30) : "");
+  const [editServiceType, setEditServiceType] = useState(() => appointment?.serviceType ?? "");
+  const [editNotes, setEditNotes] = useState(() => appointment?.notes ?? "");
+  const [date, setDate] = useState(() => appointment ? localDateTimeParts(appointment.date).date : "");
+  const [time, setTime] = useState(() => appointment ? localDateTimeParts(appointment.date).time : "");
+  const [error, setError] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [editConfirmOpen, setEditConfirmOpen] = useState(false);
+  const petsQuery = useQuery({
+    queryKey: ["pets", "client", editClientId],
+    queryFn: () => getPetsByClient(editClientId),
+    enabled: Boolean(editMode && editClientId),
+  });
+  const rescheduleMutation = useMutation({
+    mutationFn: async () => {
+      if (!appointment) throw new Error("No hay una cita seleccionada.");
+      const originalNotes = appointment.notes?.trim();
+      const newAppointment = await createAppointment({
+        clientId: appointment.clientId,
+        petId: appointment.petId,
+        ...(appointment.vetId ? { vetId: appointment.vetId } : {}),
+        date: toIsoFromLocalDateTime(date, time),
+        duration: appointment.duration,
+        serviceType: appointment.serviceType,
+        notes: [
+          originalNotes,
+          `Re-consulta de la cita #${appointment.id}.`,
+        ].filter(Boolean).join(" "),
+      });
+      const traceNotes = [
+        originalNotes,
+        `Cancelada y reconsulta: se creó la nueva cita #${newAppointment.id}.`,
+      ].filter(Boolean).join(" ");
+      await updateAppointmentStatus(String(appointment.id), "cancelled", traceNotes);
+      return newAppointment;
+    },
+    onSuccess: () => {
+      toast.success("Se creó una nueva cita y se conservó el registro anterior.");
+      onChanged();
+    },
+    onError: (mutationError) => {
+      setError(errorMessage(mutationError));
+    },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!appointment) throw new Error("No hay una cita seleccionada.");
+      await deleteAppointment(String(appointment.id));
+    },
+    onSuccess: () => {
+      toast.success("Cita eliminada permanentemente.");
+      setDeleteConfirmOpen(false);
+      onChanged();
+    },
+    onError: (mutationError) => {
+      setError(errorMessage(mutationError));
+      setDeleteConfirmOpen(false);
+    },
+  });
+  const editMutation = useMutation({
+    mutationFn: async () => {
+      if (!appointment) throw new Error("No hay una cita seleccionada.");
+      return updateAppointment(String(appointment.id), {
+        clientId: Number(editClientId),
+        petId: Number(editPetId),
+        date: toIsoFromLocalDateTime(date, time),
+        duration: Number(editDuration),
+        serviceType: editServiceType,
+        notes: editNotes,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Cita modificada correctamente.");
+      setEditMode(false);
+      onChanged();
+    },
+    onError: (mutationError) => setError(errorMessage(mutationError)),
+  });
+
+  const isClosed =
+    !appointment ||
+    appointment.status === "cancelled" ||
+    getEffectiveStatus(appointment) === "completed";
+  const isCompletedAppointment =
+    Boolean(appointment && getEffectiveStatus(appointment) === "completed");
+
+  return (
+    <Dialog open={Boolean(appointment)} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-4xl rounded-xl">
+        {appointment && (
+          <>
+            <DialogHeader>
+              <div className="flex flex-wrap items-center gap-2 pr-8">
+                <DialogTitle className="text-lg">
+                  {appointment.pet?.name || `Mascota #${appointment.petId}`}
+                </DialogTitle>
+                <Badge variant="outline" className={statusClasses[getEffectiveStatus(appointment)]}>
+                  {statusLabels[getEffectiveStatus(appointment)]}
+                </Badge>
+              </div>
+              <DialogDescription>
+                Información de la cita y acciones disponibles.
+              </DialogDescription>
+            </DialogHeader>
+
+            {editMode ? (
+              <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-appointment-client">Cliente</Label>
+                    <select id="edit-appointment-client" value={editClientId} onChange={(event) => { setEditClientId(event.target.value); setEditPetId(""); }} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      <option value="">Seleccionar cliente...</option>
+                      {clients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-appointment-pet">Mascota</Label>
+                    <select id="edit-appointment-pet" value={editPetId} onChange={(event) => setEditPetId(event.target.value)} disabled={!editClientId || petsQuery.isLoading} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      <option value="">Seleccionar mascota...</option>
+                      {(petsQuery.data ?? []).map((pet) => <option key={pet.id} value={pet.id}>{pet.name} {pet.species ? `(${pet.species})` : ""}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-appointment-date">Fecha</Label>
+                    <Input id="edit-appointment-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-appointment-time">Hora</Label>
+                    <Input id="edit-appointment-time" type="time" value={time} onChange={(event) => setTime(event.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-appointment-duration">Duración (min)</Label>
+                    <Input id="edit-appointment-duration" type="number" min={15} step={15} value={editDuration} onChange={(event) => setEditDuration(event.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-appointment-service">Servicio</Label>
+                    <Input id="edit-appointment-service" value={editServiceType} onChange={(event) => setEditServiceType(event.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-appointment-notes">Notas</Label>
+                  <Textarea id="edit-appointment-notes" rows={4} value={editNotes} onChange={(event) => setEditNotes(event.target.value)} />
+                </div>
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => setEditMode(false)} disabled={editMutation.isPending}>Cancelar edición</Button>
+                  <Button type="button" onClick={() => editMutation.mutate()} disabled={editMutation.isPending || !editClientId || !editPetId || !date || !time || Number(editDuration) <= 0}>
+                    {editMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                    Guardar cambios
+                  </Button>
+                </div>
+              </div>
+            ) : (
+            <>
+            <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2">
+              <DetailItem icon={<CalendarDays className="size-4" />} label="Fecha">
+                {formatDate(new Date(appointment.date), { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              </DetailItem>
+              <DetailItem icon={<Clock3 className="size-4" />} label="Horario">
+                {formatTime(appointment.date)} · {appointment.duration} min
+              </DetailItem>
+              <DetailItem icon={<UserRound className="size-4" />} label="Cliente">
+                {client?.name || `Cliente #${appointment.clientId}`}
+              </DetailItem>
+              <DetailItem icon={<PawPrint className="size-4" />} label="Mascota">
+                {appointment.pet?.species || "Mascota"}
+              </DetailItem>
+              {appointment.serviceType && (
+                <DetailItem label="Servicio">{appointment.serviceType}</DetailItem>
+              )}
+              {appointment.notes && (
+                <DetailItem label="Notas" className="sm:col-span-2">
+                  {appointment.notes}
+                </DetailItem>
+              )}
+            </div>
+
+            <div className="space-y-3 rounded-lg border p-4">
+              <div className="flex items-center gap-2">
+                <CalendarClock className="size-4 text-primary" />
+                <div>
+                  <p className="text-sm font-semibold">Re-agendar cita</p>
+                  <p className="text-xs text-muted-foreground">Cambia solamente la fecha y hora.</p>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="reschedule-date">Nueva fecha</Label>
+                  <Input id="reschedule-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} disabled={isClosed || rescheduleMutation.isPending} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="reschedule-time">Nueva hora</Label>
+                  <Input id="reschedule-time" type="time" value={time} onChange={(event) => setTime(event.target.value)} disabled={isClosed || rescheduleMutation.isPending} />
+                </div>
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button type="button" onClick={() => rescheduleMutation.mutate()} disabled={isClosed || !date || !time || rescheduleMutation.isPending}>
+                {rescheduleMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                Guardar nueva fecha y hora
+              </Button>
+            </div>
+            </>
+            )}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setDeleteConfirmOpen(true)}
+                disabled={rescheduleMutation.isPending || deleteMutation.isPending}
+              >
+                Eliminar permanentemente
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (isCompletedAppointment) setEditConfirmOpen(true);
+                  else setEditMode(true);
+                }}
+                disabled={rescheduleMutation.isPending || deleteMutation.isPending || editMode}
+              >
+                <Pencil className="mr-2 size-4" />
+                Modificar cita completa
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={rescheduleMutation.isPending}>
+                Cerrar
+              </Button>
+            </DialogFooter>
+            <Dialog
+              open={deleteConfirmOpen}
+              onOpenChange={(open) => {
+                if (!deleteMutation.isPending) setDeleteConfirmOpen(open);
+              }}
+            >
+              <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl">
+                <DialogHeader>
+                  <DialogTitle>Eliminar cita permanentemente</DialogTitle>
+                  <DialogDescription>
+                    Esta acción eliminará la cita y no podrá recuperarse. La trazabilidad se conservará solamente si la cita ya fue re-agendada en otro registro.
+                  </DialogDescription>
+                </DialogHeader>
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setDeleteConfirmOpen(false)} disabled={deleteMutation.isPending}>
+                    No, conservar
+                  </Button>
+                  <Button type="button" variant="destructive" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
+                    {deleteMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                    Sí, eliminar definitivamente
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Dialog
+              open={editConfirmOpen}
+              onOpenChange={(open) => {
+                if (!editMutation.isPending) setEditConfirmOpen(open);
+              }}
+            >
+              <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl">
+                <DialogHeader>
+                  <DialogTitle>Modificar cita completada</DialogTitle>
+                  <DialogDescription>
+                    La consulta asociada ya fue cerrada. Los cambios afectarán
+                    solamente los datos de la cita y no modificarán el historial
+                    clínico ni el cobro realizado. ¿Deseas continuar?
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setEditConfirmOpen(false)}
+                    disabled={editMutation.isPending}
+                  >
+                    No, conservar
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setEditConfirmOpen(false);
+                      setEditMode(true);
+                    }}
+                    disabled={editMutation.isPending}
+                  >
+                    Sí, modificar cita
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DetailItem({
+  icon,
+  label,
+  children,
+  className = "",
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`space-y-1 ${className}`}>
+      <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {icon}
+        {label}
+      </p>
+      <p className="text-sm text-foreground">{children}</p>
+    </div>
+  );
+}
+
 function AgendaSkeleton() {
   return (
     <div className="space-y-3">
@@ -906,7 +1330,7 @@ function NewAppointmentDialog({
   };
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="!w-[calc(100%-1.5rem)] max-h-[90vh] overflow-y-auto rounded-xl sm:!max-w-4xl">
+      <DialogContent className="w-[calc(100%-1.5rem)]! max-h-[90vh] overflow-y-auto rounded-xl sm:max-w-4xl!">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarDays className="size-5 text-primary" />

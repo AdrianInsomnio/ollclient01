@@ -3,8 +3,13 @@
 import { useState, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { getOpenConsultations, updateConsultationPriority } from "@/lib/api/consultations";
+import {
+  getConsultations,
+  getOpenConsultations,
+  updateConsultationPriority,
+} from "@/lib/api/consultations";
 import { getAppointments } from "@/lib/api/appointments";
+import { getConsultorios } from "@/lib/api/consultorios";
 import { getAdminUsers } from "@/lib/api/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,6 +45,7 @@ import {
 } from "lucide-react";
 import { AgregarAColaModal } from "@/components/cola/agregar-modal";
 import { QuickActions } from "@/components/cola/quick-actions";
+import { QueuePatientDialog } from "@/components/cola/queue-patient-dialog";
 import { toast } from "sonner";
 
 interface Consultation {
@@ -51,9 +57,12 @@ interface Consultation {
   vetId?: string;
   status: "OPEN" | "CLOSED";
   priority: "URGENT" | "SCHEDULED" | "NORMAL";
+  consultorioId?: number | null;
+  consultorio?: { id: number; name: string; status: "ACTIVE" | "INACTIVE" | "MAINTENANCE"; size?: string | null } | null;
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  closedAt?: string | null;
 }
 
 interface Appointment {
@@ -162,11 +171,21 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
+function isToday(value?: string | null): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  const today = new Date();
+  return (
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate()
+  );
+}
+
 function mapConsultationToQueuePatient(
   consultation: Consultation,
 ): QueuePatient {
-  let status: QueueStatus = "WAITING";
-  if (consultation.status === "OPEN") status = "WAITING";
+  const status: QueueStatus = consultation.consultorioId ? "IN_PROGRESS" : "WAITING";
   return {
     id: Number(consultation.id),
     ownerName: consultation.client?.name || "Cliente #" + consultation.clientId,
@@ -251,22 +270,31 @@ function PatientCard({
   patient,
   position,
   onPriorityChange,
+  onSelect,
   isPriorityUpdating,
 }: {
   patient: QueuePatient;
   position: number;
   onPriorityChange: (id: number, priority: Priority) => void;
+  onSelect: () => void;
   isPriorityUpdating: boolean;
 }) {
   const isUrgent = patient.priority === "URGENT";
   const isScheduled = patient.priority === "SCHEDULED";
+  const isInProgress = patient.status === "IN_PROGRESS";
   return (
     <Link
       href={"/workstation/user/consultas/" + patient.id}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest("button, select")) return;
+        event.preventDefault();
+        onSelect();
+      }}
       className={
         "group flex items-center gap-4 p-4 border rounded-xl transition-all duration-200 border-border " +
         (isUrgent ? "border-l-4 border-l-red-500 bg-red-50/30" : "") +
         (isScheduled ? "border-l-4 border-l-amber-500 bg-amber-50/30" : "") +
+        (isInProgress ? "border-green-300 bg-green-50/50" : "") +
         " hover:bg-accent/50"
       }
     >
@@ -383,6 +411,7 @@ function EmptyState({
 
 export default function ColaPage() {
   const [filter, setFilter] = useState<QueueFilter>("all");
+  const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null);
   const queryClient = useQueryClient();
   const invalidateQueries = async () => {
     await Promise.all([
@@ -398,11 +427,24 @@ export default function ColaPage() {
     queryKey: ["appointments-today"],
     queryFn: () => getAppointments(),
   });
+  const { data: allConsultations, isLoading: loadingAllConsultations } = useQuery({
+    queryKey: ["consultations"],
+    queryFn: () => getConsultations(),
+  });
+  const { data: consultorios, isLoading: loadingConsultorios } = useQuery({
+    queryKey: ["consultorios"],
+    queryFn: () => getConsultorios(),
+  });
   const { data: adminUsers, isLoading: loadingVets } = useQuery({
     queryKey: ["admin-users"],
     queryFn: () => getAdminUsers(),
   });
-  const isLoading = loadingConsultations || loadingAppointments || loadingVets;
+  const isLoading =
+    loadingConsultations ||
+    loadingAppointments ||
+    loadingAllConsultations ||
+    loadingConsultorios ||
+    loadingVets;
   const queuePatients = useMemo(() => {
     if (!consultations?.length) return [];
     return consultations.map(mapConsultationToQueuePatient);
@@ -431,13 +473,31 @@ export default function ColaPage() {
   const vets =
     adminUsers?.users?.filter((u) => u.role === "VET" && u.isActive) || [];
   const completedToday =
-    appointments?.filter((a) => a.status === "completed").length || 0;
+    allConsultations?.filter(
+      (consultation) =>
+        consultation.status === "CLOSED" &&
+        isToday(consultation.closedAt || consultation.updatedAt),
+    ).length || 0;
   const inProgressCount = queuePatients.filter(
     (p) => p.status === "IN_PROGRESS",
   ).length;
   const cancelledToday =
-    appointments?.filter((a) => a.status === "cancelled").length || 0;
-  const availableRooms = Math.max(0, 4 - inProgressCount);
+    appointments?.filter(
+      (appointment) =>
+        appointment.status === "cancelled" && isToday(appointment.date),
+    ).length || 0;
+  const activeRooms =
+    consultorios?.filter((consultorio) => consultorio.status === "ACTIVE") || [];
+  const occupiedRoomIds = new Set(
+    queuePatients
+      .filter((patient) => patient.status === "IN_PROGRESS")
+      .map((patient) =>
+        consultations?.find((consultation) => Number(consultation.id) === patient.id)
+          ?.consultorioId,
+      )
+      .filter((id): id is number => typeof id === "number"),
+  );
+  const availableRooms = Math.max(0, activeRooms.length - occupiedRoomIds.size);
   const handlePriorityChange = (patientId: number, newPriority: Priority) => {
     if (priorityMutation.isPending) return;
     priorityMutation.mutate({ id: patientId, priority: newPriority });
@@ -545,7 +605,9 @@ export default function ColaPage() {
             <div className="text-2xl font-bold text-blue-600">
               {availableRooms}
             </div>
-            <p className="text-xs text-muted-foreground">De 4 total</p>
+            <p className="text-xs text-muted-foreground">
+              De {activeRooms.length} activos
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -649,6 +711,10 @@ export default function ColaPage() {
                       patient={patient}
                       position={index + 1}
                       onPriorityChange={handlePriorityChange}
+                      onSelect={() => {
+                        const consultation = consultations?.find((item) => Number(item.id) === patient.id);
+                        if (consultation) setSelectedConsultation(consultation);
+                      }}
                       isPriorityUpdating={priorityMutation.isPending}
                     />
                   ))}
@@ -780,6 +846,17 @@ export default function ColaPage() {
           </Card>
         </div>
       </div>
+      <QueuePatientDialog
+        consultation={selectedConsultation}
+        open={Boolean(selectedConsultation)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedConsultation(null);
+        }}
+        onChanged={async () => {
+          setSelectedConsultation(null);
+          await invalidateQueries();
+        }}
+      />
     </div>
   );
 }

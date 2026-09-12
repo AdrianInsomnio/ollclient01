@@ -101,7 +101,7 @@ export function EditPetDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[96vw]! max-w-400 overflow-y-auto rounded-xl sm:max-w-400!">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-[calc(100%-2rem)]! overflow-y-auto rounded-xl sm:max-w-[54vw]!">
         <DialogHeader>
           <DialogTitle>Editar Mascota</DialogTitle>
           <DialogDescription>Modifica los datos registrados de {pet.name}.</DialogDescription>

@@ -10,6 +10,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Calendar, Clock, User, PawPrint, Check, X } from "lucide-react";
 
+const pad = (value: number) => String(value).padStart(2, "0");
+
+function getLocalDateTimeParts(value: string) {
+  const date = new Date(value);
+  return {
+    date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  };
+}
+
+function toIsoFromLocalDateTime(date: string, time: string) {
+  return new Date(`${date}T${time}:00`).toISOString();
+}
+
 export default function EditarCitaPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -47,10 +61,9 @@ export default function EditarCitaPage() {
     if (appointment) {
       setClientId(appointment.clientId.toString());
       setPetId(appointment.petId.toString());
-      const dateStr = appointment.date.split("T")[0];
-      const timeStr = appointment.date.split("T")[1].slice(0, 5); // HH:MM
-      setDate(dateStr);
-      setTime(timeStr);
+      const localDateTime = getLocalDateTimeParts(appointment.date);
+      setDate(localDateTime.date);
+      setTime(localDateTime.time);
       setDuration(appointment.duration?.toString() ?? "");
       setServiceType(appointment.serviceType ?? "");
       setNotes(appointment.notes ?? "");
@@ -65,7 +78,7 @@ export default function EditarCitaPage() {
       const updateData: any = {
         clientId: Number(clientId),
         petId: Number(petId),
-        date: `${date}T${time}:00`,
+        date: toIsoFromLocalDateTime(date, time),
         duration: Number(duration),
         serviceType: serviceType,
         notes: notes,
@@ -173,7 +186,7 @@ export default function EditarCitaPage() {
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm"
                 required
-                min={new Date().toISOString().split("T")[0]}
+                min={getLocalDateTimeParts(new Date().toISOString()).date}
               />
             </div>
             <div className="space-y-2">

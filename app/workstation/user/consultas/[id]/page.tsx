@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,6 +13,7 @@ import { createConsultationPrintPayload, printConsultationTicket } from '@/lib/l
 export default function ConsultationPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const consultationId = params?.id
 
   const [consultation, setConsultation] = useState<any>(null)
@@ -84,6 +86,11 @@ export default function ConsultationPage() {
       } finally {
         setPrinting(false)
       }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['consultations-open'] }),
+        queryClient.invalidateQueries({ queryKey: ['appointments-today'] }),
+        queryClient.invalidateQueries({ queryKey: ['consultations'] }),
+      ])
       setTimeout(() => {
         router.push('/workstation/user/consultas')
       }, 2000)
