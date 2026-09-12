@@ -10,7 +10,7 @@ export interface Sale {
   discount: number
   tax: number
   total: number
-  status: 'pending' | 'HELD' | 'IN_PROGRESS' | 'completed' | 'cancelled'
+  status: 'DRAFT' | 'WAITING' | 'CONFIRMED' | 'CANCELLED'
   paymentMethod?: string
   items: SaleItem[]
   saleItems?: SaleItem[]
@@ -72,6 +72,7 @@ export interface CreateSalePayload {
   }>
   discount?: number
   paymentMethod: string
+  cashShiftId?: number
   notes?: string
 }
 
@@ -112,17 +113,17 @@ export interface HoldSalePayload {
   cashShiftId: number
 }
 
-export async function holdSale(data: HoldSalePayload) {
-  const response = await post<{ sale: Sale }>('/sales/hold', data)
+export async function createWaitingSale(data: HoldSalePayload) {
+  const response = await post<{ sale: Sale }>('/sales/waiting', data)
   return response.sale
 }
 
-export async function getHeldSales(cashShiftId: number) {
-  const response = await get<{ sales: Sale[] }>(`/sales/held?cashShiftId=${cashShiftId}`)
+export async function getWaitingSales(cashShiftId: number) {
+  const response = await get<{ sales: Sale[] }>(`/sales/waiting?cashShiftId=${cashShiftId}`)
   return response.sales
 }
 
-export async function resumeHeldSale(id: string | number) {
+export async function resumeWaitingSale(id: string | number) {
   const response = await post<{ sale: Sale }>(`/sales/${id}/resume`, {})
   return response.sale
 }

@@ -76,9 +76,9 @@ export default function UserSalesPage() {
                       <td className="py-2 pr-4">
                         <span
                           className={`px-2 py-0.5 text-xs rounded-full ${
-                            sale.status === "completed"
+                            sale.status === "CONFIRMED"
                               ? "bg-green-100 text-green-800"
-                              : sale.status === "pending"
+                              : sale.status === "DRAFT" || sale.status === "WAITING"
                               ? "bg-yellow-100 text-yellow-800"
                               : "bg-red-100 text-red-800"
                           }`}

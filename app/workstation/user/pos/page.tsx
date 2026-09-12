@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Search, Loader2 } from 'lucide-react'
 import { getClients, getClient } from '@/lib/api/clients'
 import { getProducts } from '@/lib/api/products'
-import { createSale, getSaleById, holdSale, updateSale } from '@/lib/api/sales'
+import { createSale, createWaitingSale, getSaleById, updateSale } from '@/lib/api/sales'
 import { getCashRegisters, getCurrentCashShift } from '@/lib/api/cash'
 import { printSaleTicket } from '@/lib/local-printer'
 
@@ -172,6 +172,9 @@ export default function PosPage() {
     setSuccess(null)
     setPrintError(null)
     try {
+      if (!cashShiftId) {
+        throw new Error('Abra un turno de caja antes de confirmar la venta')
+      }
       const sale = resumedSaleId ? await updateSale(resumedSaleId, {
         items: cart.map((item) => ({
           itemType: 'product' as const,
@@ -188,6 +191,7 @@ export default function PosPage() {
           quantity: item.quantity,
         })),
         paymentMethod: 'cash',
+        cashShiftId,
         discount: 0,
       })
 
@@ -220,7 +224,7 @@ export default function PosPage() {
     setLoading(true)
     setError(null)
     try {
-      await holdSale({
+      await createWaitingSale({
         clientId: Number(selectedClientId),
         cashShiftId,
         items: cart.map((item) => ({ itemType: 'product', itemId: item.product.id, quantity: item.quantity })),
