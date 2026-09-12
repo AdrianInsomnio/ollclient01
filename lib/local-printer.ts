@@ -1,4 +1,5 @@
 import type { CloseConsultationResponse } from '@/lib/api/consultations'
+import { registerSalePrint, type Sale, type SalePrintResponse } from '@/lib/api/sales'
 
 const PRINT_AGENT_URL = process.env.NEXT_PUBLIC_PRINT_AGENT_URL || 'http://localhost:3333'
 const PRINT_AGENT_API_KEY = process.env.NEXT_PUBLIC_PRINT_AGENT_API_KEY || 'admin_local'
@@ -12,6 +13,12 @@ export interface LocalPrintState {
 }
 
 export interface ConsultationPrintPayload {
+  config?: {
+    width: number
+    cut: 'full' | 'partial'
+    feedLines: number
+  }
+  type?: string
   clinic: {
     name: string
   }
@@ -87,6 +94,11 @@ export function createConsultationPrintPayload(response: CloseConsultationRespon
   const consultation = response.consultation
 
   return {
+    config: {
+      width: 48,
+      cut: 'full',
+      feedLines: 3,
+    },
     clinic: {
       name: CLINIC_NAME,
     },
@@ -137,10 +149,15 @@ export async function printConsultationTicket(payload: ConsultationPrintPayload)
     throw new Error(error.message || error.error || 'No se pudo imprimir el ticket')
   }
 }
-import type { Sale } from '@/lib/api/sales'
-
-export function createSalePrintPayload(sale: Sale): ConsultationPrintPayload {
+export function createSalePrintPayload(sale: Sale, printData?: SalePrintResponse['printData']): ConsultationPrintPayload {
+  const items = sale.items ?? sale.saleItems ?? []
   return {
+    config: {
+      width: 48,
+      cut: 'full',
+      feedLines: 3,
+    },
+    type: printData?.type || 'TICKET ORIGINAL',
     clinic: {
       name: CLINIC_NAME,
     },
@@ -163,19 +180,16 @@ export function createSalePrintPayload(sale: Sale): ConsultationPrintPayload {
       createdAt: sale.createdAt,
       closedAt: undefined,
     },
-    items: sale.items.map(item => ({
-      description: item.nameSnapshot ?? 'Item',
+    items: (printData?.items || items).map(item => ({
+      description: 'name' in item ? item.name : item.nameSnapshot ?? 'Item',
       quantity: item.quantity,
-      unitPrice: item.priceSnapshot,
+      unitPrice: 'price' in item ? item.price : item.priceSnapshot,
       total: item.subtotal,
     })),
-    subtotal: sale.subtotal,
-    tax: sale.tax,
-    total: sale.total,
-    payments: [{
-      method: sale.paymentMethod ?? 'efectivo',
-      amount: sale.total,
-    }],
+    subtotal: printData?.subtotal ?? sale.subtotal,
+    tax: printData?.tax ?? sale.tax,
+    total: printData?.total ?? sale.total,
+    payments: printData?.payments || sale.payments || [{ method: sale.paymentMethod ?? 'efectivo', amount: sale.total }],
     number: sale.id,
     footer: {
       message: 'Gracias por su visita',
@@ -184,6 +198,13 @@ export function createSalePrintPayload(sale: Sale): ConsultationPrintPayload {
 }
 
 export async function printSaleTicket(sale: Sale): Promise<void> {
-  const payload = createSalePrintPayload(sale);
+  const registered = await registerSalePrint(sale.id);
+  const payload = createSalePrintPayload(registered.sale, registered.printData);
+  await printConsultationTicket(payload);
+}
+
+export async function reprintSaleTicket(saleId: string | number, reason?: string): Promise<void> {
+  const registered = await registerSalePrint(saleId, reason);
+  const payload = createSalePrintPayload(registered.sale, registered.printData);
   await printConsultationTicket(payload);
 }

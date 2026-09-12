@@ -18,6 +18,33 @@ export interface Sale {
   pet?: { id: string | number; name: string }
   createdAt?: string
   updatedAt?: string
+  cashShiftId?: number | null
+  payments?: Array<{ id?: string; method: string; amount: number }>
+}
+
+export interface SalePrintResponse {
+  print: {
+    id: number
+    type: 'ORIGINAL' | 'DUPLICATE'
+    reprintNumber: number
+    createdAt: string
+  }
+  sale: Sale & { saleItems?: SaleItem[] }
+  printData: {
+    type: 'TICKET ORIGINAL' | 'TICKET DUPLICADO'
+    printType: 'ORIGINAL' | 'DUPLICATE'
+    printId: number
+    reprintNumber: number
+    saleId: number
+    client?: Sale['client']
+    pet?: Sale['pet']
+    items: Array<{ name: string; quantity: number; price: number; subtotal: number }>
+    subtotal: number
+    discount: number
+    tax: number
+    total: number
+    payments: Array<{ method: string; amount: number }>
+  }
 }
 
 export interface SaleItem {
@@ -79,4 +106,12 @@ export async function updateSale(id: string, data: Partial<Sale>) {
 // DELETE /api/sales/:id
 export async function deleteSale(id: string) {
   return await del<void>(`/sales/${id}`)
+}
+
+export async function registerSalePrint(id: string | number, reason?: string) {
+  return await post<SalePrintResponse>(`/sales/${id}/print`, reason ? { reason } : {})
+}
+
+export async function getSalePrintHistory(id: string | number) {
+  return await get<{ prints: SalePrintResponse['print'][] }>(`/sales/${id}/prints`)
 }

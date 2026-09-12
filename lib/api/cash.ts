@@ -53,6 +53,11 @@ export const getCashShift = (id: number) => get<CashShiftDetail>(`/cash/admin/sh
 export const getCashMovements = (filters: CashFilters) => get<Paginated<CashMovement>>(`/cash/admin/movements?${queryString(filters)}`);
 export const createCashAdjustment = (id: number, data: { amount: string; reason: string; notes?: string }) => post<CashMovement>(`/cash/admin/shifts/${id}/adjustment`, data);
 export const getCashRegisters = () => get<{ success?: boolean; data: CashRegister[] }>("/cash").then((response) => response.data ?? []);
+export const openCashShift = (cashRegisterId: number, openingAmount: string) => post<{ success: boolean; data: CashShift }>(`/cash/${cashRegisterId}/shifts`, { openingAmount }).then((response) => response.data);
+export const getCurrentCashShift = (cashRegisterId: number) => get<{ success: boolean; data: CashShift | null }>(`/cash/${cashRegisterId}/current-shift`).then((response) => response.data);
+export const getCashShiftMovements = (cashShiftId: number) => get<{ success: boolean; data: CashMovement[] }>(`/cash/shifts/${cashShiftId}/movements`).then((response) => response.data ?? []);
+export const createCashMovement = (cashShiftId: number, data: { type: CashMovementType; amount: string; reason: string; notes?: string }) => post<{ success: boolean; data: CashMovement }>(`/cash/shifts/${cashShiftId}/movements`, data).then((response) => response.data);
+export const closeCashShift = (cashShiftId: number, data: { countedAmount: string; closingNotes?: string; differenceReason?: string }) => post<{ success: boolean; data: CashShift }>(`/cash/shifts/${cashShiftId}/close`, data).then((response) => response.data);
 
 export interface AdminCashRegister extends CashRegister {
   isActive: boolean;
