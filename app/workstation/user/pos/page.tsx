@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Search, Loader2 } from 'lucide-react'
 import { getClients, getClient } from '@/lib/api/clients'
 import { getProducts } from '@/lib/api/products'
-import { createSale } from '@/lib/api/sales'
+import { createSale, getSaleById, holdSale, updateSale } from '@/lib/api/sales'
+import { getCashRegisters, getCurrentCashShift } from '@/lib/api/cash'
 import { printSaleTicket } from '@/lib/local-printer'
 
 type Client = { id: string; name: string; documentId?: string }
@@ -17,6 +18,7 @@ type CartItem = { product: Product; quantity: number }
 
 export default function PosPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [clients, setClients] = useState<Client[]>([])
   const [clientSearch, setClientSearch] = useState('')
   const [products, setProducts] = useState<Product[]>([])
@@ -29,11 +31,47 @@ export default function PosPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [printing, setPrinting] = useState(false)
   const [printError, setPrintError] = useState<string | null>(null)
+  const [cashShiftId, setCashShiftId] = useState<number | null>(null)
+  const [resumedSaleId, setResumedSaleId] = useState<string | null>(null)
 
   useEffect(() => {
     loadClients()
     loadProducts()
+    void loadCashShift()
   }, [])
+
+  useEffect(() => {
+    const saleId = searchParams.get('resume')
+    if (!saleId || products.length === 0 || cart.length > 0) return
+    void (async () => {
+      try {
+        const sale = await getSaleById(saleId)
+        const client = await getClient(String(sale.clientId))
+        const restoredItems = (sale.saleItems ?? sale.items ?? []).map((item) => {
+          const product = products.find((candidate) => candidate.id === item.itemId)
+          return product ? { product, quantity: item.quantity } : null
+        }).filter((item): item is CartItem => item !== null)
+        setSelectedClientId(String(sale.clientId))
+        setSelectedClient(client as Client)
+        setCart(restoredItems)
+        setResumedSaleId(saleId)
+        setSuccess(`Cuenta #${sale.id} retomada.`)
+      } catch (err: any) {
+        setError(err?.message ?? 'No se pudo retomar la cuenta en espera')
+      }
+    })()
+  }, [searchParams, products, cart.length])
+
+  const loadCashShift = async () => {
+    try {
+      const registers = await getCashRegisters()
+      if (!registers[0]) return
+      const shift = await getCurrentCashShift(registers[0].id)
+      setCashShiftId(shift?.id ?? null)
+    } catch {
+      setCashShiftId(null)
+    }
+  }
 
   const loadClients = async () => {
     try {
@@ -134,7 +172,15 @@ export default function PosPage() {
     setSuccess(null)
     setPrintError(null)
     try {
-      const sale = await createSale({
+      const sale = resumedSaleId ? await updateSale(resumedSaleId, {
+        items: cart.map((item) => ({
+          itemType: 'product' as const,
+          itemId: item.product.id,
+          quantity: item.quantity,
+        })),
+        paymentMethod: 'cash',
+        discount: 0,
+      }) : await createSale({
         clientId: Number(selectedClientId),
         items: cart.map((item) => ({
           itemType: 'product',
@@ -158,12 +204,35 @@ export default function PosPage() {
       setSelectedClientId(null)
       setSelectedClient(null)
       setCart([])
+      setResumedSaleId(null)
     } catch (err: any) {
       setError(err?.response?.data?.message ?? err?.message ?? 'Error al crear venta')
       console.error(err)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleHold = async () => {
+    if (!selectedClientId) { setError('Seleccione un cliente'); return }
+    if (!cashShiftId) { setError('Abra un turno de caja antes de guardar una cuenta en espera'); return }
+    if (cart.length === 0) { setError('El carrito está vacío'); return }
+    setLoading(true)
+    setError(null)
+    try {
+      await holdSale({
+        clientId: Number(selectedClientId),
+        cashShiftId,
+        items: cart.map((item) => ({ itemType: 'product', itemId: item.product.id, quantity: item.quantity })),
+        discount: 0,
+      })
+      setSuccess('Cuenta guardada en espera.')
+      setSelectedClientId(null)
+      setSelectedClient(null)
+      setCart([])
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? err?.message ?? 'No se pudo guardar la cuenta en espera')
+    } finally { setLoading(false) }
   }
 
   if (loading) {
@@ -311,6 +380,9 @@ export default function PosPage() {
                       : printing
                         ? 'Imprimiendo...'
                         : 'Confirmar Venta'}
+                  </Button>
+                  <Button variant="outline" onClick={handleHold} disabled={loading || printing} className="w-full">
+                    Cuenta en espera
                   </Button>
                   {printError && (
                     <div className="p-2 bg-red-50 text-red-600 rounded text-sm">

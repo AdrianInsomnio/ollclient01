@@ -10,7 +10,7 @@ export interface Sale {
   discount: number
   tax: number
   total: number
-  status: 'pending' | 'completed' | 'cancelled'
+  status: 'pending' | 'HELD' | 'IN_PROGRESS' | 'completed' | 'cancelled'
   paymentMethod?: string
   items: SaleItem[]
   saleItems?: SaleItem[]
@@ -90,7 +90,8 @@ export async function getSales(): Promise<Sale[]> {
 
 // GET /api/sales/:id
 export async function getSaleById(id: string) {
-  return await get<Sale>(`/sales/${id}`)
+  const response = await get<{ sale: Sale }>(`/sales/${id}`)
+  return response.sale
 }
 
 // POST /api/sales
@@ -98,8 +99,41 @@ export async function createSale(data: CreateSalePayload) {
   return await post<Sale>('/sales', data)
 }
 
+export interface HoldSalePayload {
+  clientId: string | number
+  petId?: string | number
+  consultationId?: string | number
+  items: CreateSalePayload['items']
+  discount?: number
+  notes?: string
+  cashShiftId: number
+}
+
+export async function holdSale(data: HoldSalePayload) {
+  const response = await post<{ sale: Sale }>('/sales/hold', data)
+  return response.sale
+}
+
+export async function getHeldSales(cashShiftId: number) {
+  const response = await get<{ sales: Sale[] }>(`/sales/held?cashShiftId=${cashShiftId}`)
+  return response.sales
+}
+
+export async function resumeHeldSale(id: string | number) {
+  const response = await post<{ sale: Sale }>(`/sales/${id}/resume`, {})
+  return response.sale
+}
+
 // PUT /api/sales/:id (status updates, etc.)
-export async function updateSale(id: string, data: Partial<Sale>) {
+export interface UpdateSalePayload {
+  items: CreateSalePayload['items']
+  discount?: number
+  paymentMethod?: string
+  reason?: string
+  notes?: string
+}
+
+export async function updateSale(id: string, data: UpdateSalePayload) {
   return await put<Sale>(`/sales/${id}`, data)
 }
 
