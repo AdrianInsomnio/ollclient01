@@ -90,6 +90,9 @@ export async function getSales(): Promise<Sale[]> {
 
 // GET /api/sales/:id
 export async function getSaleById(id: string) {
+  if (!id || !/^\d+$/.test(id)) {
+    throw new Error('El identificador de venta no es válido')
+  }
   const response = await get<{ sale: Sale }>(`/sales/${id}`)
   return response.sale
 }
