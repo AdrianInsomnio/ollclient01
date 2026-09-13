@@ -72,6 +72,7 @@ export interface CreateSalePayload {
   }>
   discount?: number
   paymentMethod: string
+  payments?: Array<{ method: string; amount: number; reference?: string; notes?: string }>
   cashShiftId?: number
   notes?: string
 }
@@ -104,6 +105,7 @@ export async function createSale(data: CreateSalePayload) {
 }
 
 export interface HoldSalePayload {
+  draftId?: string | number
   clientId: string | number
   petId?: string | number
   consultationId?: string | number
@@ -116,6 +118,18 @@ export interface HoldSalePayload {
 export async function createWaitingSale(data: HoldSalePayload) {
   const response = await post<{ sale: Sale }>('/sales/waiting', data)
   return response.sale
+}
+
+export type DraftSalePayload = Omit<HoldSalePayload, 'cashShiftId'>
+
+export async function createDraftSale(data: DraftSalePayload) {
+  const response = await post<{ sale: Sale }>('/sales/drafts', data)
+  return response.sale
+}
+
+export async function getDraftSales() {
+  const response = await get<{ sales: Sale[] }>('/sales/drafts')
+  return response.sales
 }
 
 export async function getWaitingSales(cashShiftId: number) {
@@ -135,6 +149,8 @@ export interface UpdateSalePayload {
   paymentMethod?: string
   reason?: string
   notes?: string
+  cashShiftId?: number
+  payments?: Array<{ method: string; amount: number; reference?: string; notes?: string }>
 }
 
 export async function updateSale(id: string, data: UpdateSalePayload) {
@@ -144,6 +160,10 @@ export async function updateSale(id: string, data: UpdateSalePayload) {
 // DELETE /api/sales/:id
 export async function deleteSale(id: string) {
   return await del<void>(`/sales/${id}`)
+}
+
+export async function correctSale(id: string | number, data: UpdateSalePayload) {
+  return await post<{ original: Sale; waiting: Sale }>(`/sales/${id}/correct`, data)
 }
 
 export async function registerSalePrint(id: string | number, reason?: string) {
