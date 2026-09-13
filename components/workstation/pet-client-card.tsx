@@ -1,26 +1,22 @@
-"use client"
+﻿"use client";
 
-import { Calendar, ChevronRight, PawPrint, Phone, User } from "lucide-react"
+import { Calendar, ChevronRight, PawPrint, Phone, User } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 export interface PetClientCardProps {
-  petName: string
-  petSpecies?: string
-  petBreed?: string
-  petAgeLabel?: string
-  clientName: string
-  clientPhone?: string
-  clientDocumentId?: string
-  historyCount?: number
-  onViewHistory?: () => void
+  petName: string;
+  petSpecies?: string;
+  petBreed?: string;
+  petAgeLabel?: string;
+  clientName: string;
+  clientPhone?: string;
+  clientDocumentId?: string;
+  historyCount?: number;
+  onViewHistory?: () => void;
 }
-
 export function PetClientCard(props: PetClientCardProps) {
   const {
     petName,
@@ -32,14 +28,14 @@ export function PetClientCard(props: PetClientCardProps) {
     clientDocumentId,
     historyCount,
     onViewHistory,
-  } = props
+  } = props;
 
   return (
     <Card size="sm">
-      <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-1 items-start gap-3 md:items-center">
-          <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full">
-            <PawPrint className="size-5" aria-hidden />
+      <CardContent className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-1 items-start gap-2 md:items-center">
+          <div className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-full">
+            <PawPrint className="size-4" aria-hidden />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-muted-foreground text-xs">Paciente</div>
@@ -47,17 +43,18 @@ export function PetClientCard(props: PetClientCardProps) {
               {petName}
             </div>
             <div className="text-muted-foreground truncate text-xs">
-              {[petSpecies, petBreed].filter(Boolean).join(" / ") || "Sin especie"}
+              {[petSpecies, petBreed].filter(Boolean).join(" / ") ||
+                "Sin especie"}
               {petAgeLabel ? ` · ${petAgeLabel}` : ""}
             </div>
           </div>
         </div>
 
-        <Separator orientation="vertical" className="hidden h-12 md:block" />
+        <Separator orientation="vertical" className="hidden h-9 md:block" />
 
-        <div className="flex flex-1 items-start gap-3 md:items-center">
-          <div className="bg-secondary text-secondary-foreground flex size-10 shrink-0 items-center justify-center rounded-full">
-            <User className="size-5" aria-hidden />
+        <div className="flex flex-1 items-start gap-2 md:items-center">
+          <div className="bg-secondary text-secondary-foreground flex size-8 shrink-0 items-center justify-center rounded-full">
+            <User className="size-4" aria-hidden />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-muted-foreground text-xs">Tutor</div>
@@ -70,9 +67,7 @@ export function PetClientCard(props: PetClientCardProps) {
                   <Phone className="size-3" aria-hidden /> {clientPhone}
                 </span>
               ) : null}
-              {clientDocumentId ? (
-                <span>CI {clientDocumentId}</span>
-              ) : null}
+              {clientDocumentId ? <span>CI {clientDocumentId}</span> : null}
             </div>
           </div>
         </div>
@@ -96,5 +91,6 @@ export function PetClientCard(props: PetClientCardProps) {
         ) : null}
       </CardContent>
     </Card>
-  )
+  );
 }
+
