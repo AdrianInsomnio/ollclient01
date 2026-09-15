@@ -586,11 +586,11 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
 
               {/* Paciente seleccionado - Resumen */}
               {selectedPatient && (
-                <Card className="border-emerald-500 bg-emerald-50">
+                <Card className="border-blue-200 bg-blue-50/60">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-emerald-100 rounded-lg">
-                        <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <CheckCircle2 className="h-5 w-5 text-blue-600" />
                       </div>
                       <div className="flex-1">
                         <p className="font-medium">{selectedPatient.name}</p>
@@ -607,7 +607,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                         Cambiar
                       </Button>
                     </div>
-                    <div className="mt-3 pt-3 border-t">
+                    <div className="mt-3 pt-3 border-t border-blue-200">
                       <Label className="text-sm">Motivo de consulta (opcional)</Label>
                       <Input
                         placeholder="Ej: Consulta general, vacunación, control..."
