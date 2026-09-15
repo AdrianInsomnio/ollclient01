@@ -460,7 +460,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                 )}
               </div>
 
-              <div className="min-h-0 flex-1 space-y-4 overflow-hidden pr-1">
+              <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden pr-1">
               {isSearching && (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
@@ -470,11 +470,11 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
 
               {/* Resultados de busqueda */}
               {searchQuery.trim().length >= 2 && searchResults.length > 0 && !isSearching && (
-                <div className="space-y-2">
+                <div className="flex min-h-0 flex-1 flex-col space-y-2">
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Resultados ({searchResults.length})
                   </h4>
-                  <ScrollArea className="h-[40vh] min-h-0 max-h-[40vh] overflow-hidden">
+                  <ScrollArea className="min-h-0 flex-1 overflow-hidden">
                     <div className="space-y-2 pr-2">
                     {searchResults.map((patient) => (
                       <button
@@ -512,7 +512,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
 
               {/* Pacientes recientes */}
               {searchQuery.trim().length < 2 && (
-                <div className="space-y-2">
+                <div className="flex min-h-0 flex-1 flex-col space-y-2">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       Pacientes Recientes
@@ -526,7 +526,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                       ))}
                     </div>
                   ) : recentPatients.length > 0 ? (
-                    <ScrollArea className="h-[40vh] min-h-0 max-h-[40vh] overflow-hidden">
+                    <ScrollArea className="min-h-0 flex-1 overflow-hidden">
                       <div className="space-y-2 pr-2">
                       {recentPatients.map((patient) => (
                         <button
