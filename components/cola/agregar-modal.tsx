@@ -136,7 +136,17 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
 
   const handleOpenChange = (value: boolean) => {
     setOpen(value)
-    if (value) setScheduledTab(true)
+    if (value) {
+      setScheduledTab(true)
+      return
+    }
+
+    // La selección pertenece únicamente a la apertura actual del modal.
+    // Evita que un paciente anterior quede marcado al volver a buscar.
+    setSelectedPatient(null)
+    setSearchQuery("")
+    setSearchResults([])
+    setShowNewPatientForm(false)
   }
 
   const handleScheduledAppointment = async (appointment: Appointment) => {
@@ -190,7 +200,10 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
         }
       }
 
-      setRecentPatients(results.slice(0, 10))
+      const uniqueResults = Array.from(
+        new Map(results.map((patient) => [patientKey(patient), patient])).values()
+      )
+      setRecentPatients(uniqueResults.slice(0, 10))
     } catch (error) {
       console.error("Error loading recent patients:", error)
     } finally {
@@ -424,7 +437,10 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                 <Input
                   placeholder="Buscar por nombre, dueño, teléfono, documento..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedPatient(null)
+                    setSearchQuery(e.target.value)
+                  }}
                   className="pl-10"
                   autoFocus
                 />
@@ -434,7 +450,10 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                     variant="ghost"
                     size="icon"
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    onClick={() => setSearchQuery("")}
+                    onClick={() => {
+                      setSelectedPatient(null)
+                      setSearchQuery("")
+                    }}
                   >
                     <X className="h-4 w-4" />
                   </Button>
