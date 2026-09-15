@@ -430,9 +430,9 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
             <ScheduledAppointmentsList appointments={scheduledAppointments} loading={isLoadingScheduled} submitting={isSubmitting} onSelect={handleScheduledAppointment} />
           ) : !showNewPatientForm ? (
             // VISTA: BUSQUEDA
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
               {/* Buscador */}
-              <div className="relative">
+              <div className="relative z-10 flex-shrink-0 bg-background pb-4">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar por nombre, dueño, teléfono, documento..."
@@ -460,6 +460,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                 )}
               </div>
 
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               {isSearching && (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
@@ -584,9 +585,11 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                 </div>
               )}
 
+              </div>
+
               {/* Paciente seleccionado - Resumen */}
               {selectedPatient && (
-                <Card className="border-blue-200 bg-blue-50/60">
+                <Card className="mt-4 flex-shrink-0 border-blue-200 bg-blue-50/60">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-blue-100 rounded-lg">
