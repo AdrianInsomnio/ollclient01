@@ -65,6 +65,9 @@ export default function LoginPage() {
           case 403:
             message = 'No tienes permiso para acceder.'
             break
+          case 429:
+            message = err.message || 'Demasiados intentos. Intenta nuevamente en unos minutos.'
+            break
           case 500:
             message = 'Error interno del servidor. Intenta más tarde.'
             break

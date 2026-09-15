@@ -42,6 +42,10 @@ export interface ConsultationPrintPayload {
     quantity: number
     unitPrice: number
     total: number
+    ivaIncluded?: boolean
+    ivaRate?: number
+    netAmount?: number
+    taxAmount?: number
   }>
   subtotal: number
   tax: number
@@ -69,6 +73,11 @@ interface BackendPrintData {
     quantity?: number
     price?: number
     subtotal?: number
+    unitPrice?: number
+    ivaIncluded?: boolean
+    ivaRate?: number
+    netAmount?: number
+    taxAmount?: number
   }>
   subtotal?: number
   tax?: number
@@ -86,6 +95,10 @@ type PrintableItem = {
   price?: number
   priceSnapshot?: number
   subtotal?: number
+  ivaIncluded?: boolean
+  ivaRate?: number
+  netAmount?: number
+  taxAmount?: number
 }
 
 export function createConsultationPrintPayload(response: CloseConsultationResponse): ConsultationPrintPayload {
@@ -122,6 +135,10 @@ export function createConsultationPrintPayload(response: CloseConsultationRespon
       quantity: item.quantity || 1,
       unitPrice: item.price ?? item.priceSnapshot ?? 0,
       total: item.subtotal ?? (item.price ?? item.priceSnapshot ?? 0) * (item.quantity || 1),
+      ivaIncluded: item.ivaIncluded,
+      ivaRate: item.ivaRate,
+      netAmount: item.netAmount,
+      taxAmount: item.taxAmount,
     })),
     subtotal: printData.subtotal ?? sale?.subtotal ?? 0,
     tax: printData.tax ?? sale?.tax ?? 0,
@@ -185,11 +202,15 @@ export function createSalePrintPayload(sale: Sale, printData?: SalePrintResponse
       quantity: item.quantity,
       unitPrice: 'price' in item ? item.price : item.priceSnapshot,
       total: item.subtotal,
+      ivaIncluded: 'ivaIncluded' in item ? item.ivaIncluded : undefined,
+      ivaRate: 'ivaRate' in item ? item.ivaRate : undefined,
+      netAmount: 'netAmount' in item ? item.netAmount : undefined,
+      taxAmount: 'taxAmount' in item ? item.taxAmount : undefined,
     })),
     subtotal: printData?.subtotal ?? sale.subtotal,
     tax: printData?.tax ?? sale.tax,
     total: printData?.total ?? sale.total,
-    payments: printData?.payments || sale.payments || [{ method: sale.paymentMethod ?? 'efectivo', amount: sale.total }],
+  payments: printData?.payments || sale.payments || [{ method: sale.paymentMethod ?? 'efectivo', amount: sale.total }],
     number: sale.id,
     footer: {
       message: 'Gracias por su visita',
@@ -198,9 +219,18 @@ export function createSalePrintPayload(sale: Sale, printData?: SalePrintResponse
 }
 
 export async function printSaleTicket(sale: Sale): Promise<void> {
-  const registered = await registerSalePrint(sale.id);
-  const payload = createSalePrintPayload(registered.sale, registered.printData);
-  await printConsultationTicket(payload);
+  try {
+    const registered = await registerSalePrint(sale.id);
+    const payload = createSalePrintPayload(registered.sale, registered.printData);
+    await printConsultationTicket(payload);
+  } catch (error) {
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      throw new Error(
+        "No se pudo conectar con el agente de impresión. El cobro fue realizado, pero el ticket quedó pendiente de impresión.",
+      );
+    }
+    throw error;
+  }
 }
 
 export async function reprintSaleTicket(saleId: string | number, reason?: string): Promise<void> {

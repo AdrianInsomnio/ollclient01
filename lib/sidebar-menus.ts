@@ -151,7 +151,12 @@ export const adminSidebar: MenuGroup[] = [
         href: "/workstation/admin/inventory",
         label: "Productos",
         icon: "Package",
-      }
+      },
+      {
+        href: "/workstation/admin/settings/inventory/categories",
+        label: "Categorías",
+        icon: "Tags",
+      },
     ],
   },
   {
@@ -171,6 +176,11 @@ export const adminSidebar: MenuGroup[] = [
       {
         href: "/workstation/admin/cash/payments",
         label: "Pagos",
+        icon: "Wallet",
+      },
+      {
+        href: "/workstation/admin/cobranza",
+        label: "Cobranza de suscripciones",
         icon: "Wallet",
       },
     ],
@@ -199,6 +209,11 @@ export const adminSidebar: MenuGroup[] = [
         href: "/workstation/admin/settings",
         label: "Ajustes",
         icon: "Settings",
+      },
+      {
+        href: "/workstation/admin/planes",
+        label: "Planes veterinarios",
+        icon: "Package",
       },
     ],
   },
@@ -295,6 +310,11 @@ export const veterinarianSidebar: MenuGroup[] = [
       },
       { href: "/workstation/vet/vacunas", label: "Vacunas", icon: "FileText" },
     ],
+  },
+  {
+    label: "Inventario",
+    icon: "Package",
+    items: [{ href: "/workstation/vet/inventario", label: "Consultar inventario", icon: "Package" }],
   },
 ];
 

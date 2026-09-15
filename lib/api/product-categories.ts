@@ -11,6 +11,15 @@ export interface ProductCategory {
   updatedAt?: string
 }
 
+export interface ProductSubcategory {
+  id: number
+  name: string
+  description?: string | null
+  isActive: boolean
+  categoryId: number
+  clinicId?: number
+}
+
 export async function getProductCategories() {
   const response = await get<{ categories: ProductCategory[] }>('/product-categories')
   return (response.categories ?? []).map((category) => ({
@@ -32,4 +41,24 @@ export async function updateProductCategory(id: number, data: { name: string; de
 export async function updateProductCategoryStatus(id: number, isActive: boolean) {
   const response = await patch<{ category: ProductCategory }>(`/product-categories/${id}/status`, { isActive })
   return response.category
+}
+
+export async function getProductSubcategories(categoryId: number) {
+  const response = await get<{ subcategories: ProductSubcategory[] }>(`/product-categories/${categoryId}/subcategories`)
+  return response.subcategories ?? []
+}
+
+export async function createProductSubcategory(categoryId: number, data: { name: string; description?: string }) {
+  const response = await post<{ subcategory: ProductSubcategory }>(`/product-categories/${categoryId}/subcategories`, data)
+  return response.subcategory
+}
+
+export async function updateProductSubcategory(categoryId: number, id: number, data: { name: string; description?: string }) {
+  const response = await put<{ subcategory: ProductSubcategory }>(`/product-categories/${categoryId}/subcategories/${id}`, data)
+  return response.subcategory
+}
+
+export async function updateProductSubcategoryStatus(categoryId: number, id: number, isActive: boolean) {
+  const response = await patch<{ subcategory: ProductSubcategory }>(`/product-categories/${categoryId}/subcategories/${id}/status`, { isActive })
+  return response.subcategory
 }

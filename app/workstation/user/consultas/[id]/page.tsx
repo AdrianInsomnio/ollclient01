@@ -202,6 +202,16 @@ export default function ConsultationPage() {
 
             <div>
               <h2 className="text-lg font-semibold mb-2">Cerrar consulta</h2>
+              {consultation.items && consultation.items.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mb-4 w-full"
+                  onClick={() => router.push(`/workstation/user/pos?consultationId=${consultation.id}`)}
+                >
+                  Continuar venta en POS
+                </Button>
+              )}
               <form onSubmit={handleClose} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Método de pago</label>

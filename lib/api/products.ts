@@ -5,14 +5,22 @@ export interface Product {
   name: string
   description?: string
   sku?: string
+  barcode?: string
+  brand?: string
+  supplier?: string
+  priceType: 'FIXED' | 'VARIABLE'
   price: number
+  ivaIncluded: boolean
   cost?: number
   stock: number
   minStock: number
+  maxStock?: number | null
   isActive: boolean
   discontinuedAt?: string | null
   categoryId?: number | null
+  subcategoryId?: number | null
   category?: { id: number; name: string } | null
+  subcategory?: { id: number; name: string } | null
   createdAt?: string
   updatedAt?: string
 }
@@ -53,7 +61,7 @@ export async function getProductById(id: number) {
 }
 
 // POST /api/products (create)
-export type ProductPayload = Pick<Product, 'name' | 'price' | 'stock' | 'minStock' | 'isActive'> & Partial<Pick<Product, 'description' | 'sku' | 'categoryId' | 'cost'>>
+export type ProductPayload = Pick<Product, 'name' | 'price' | 'stock' | 'minStock' | 'isActive' | 'priceType' | 'ivaIncluded'> & Partial<Pick<Product, 'description' | 'sku' | 'barcode' | 'brand' | 'supplier' | 'categoryId' | 'subcategoryId' | 'cost' | 'maxStock'>>
 
 export async function createProduct(data: ProductPayload) {
   return await post<Product>('/products', data)

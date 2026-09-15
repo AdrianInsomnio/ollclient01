@@ -100,7 +100,7 @@ async function request<T>(
         const errorData = await response.json().catch(() => ({}));
         throw new ApiError(
           errorData.code || "UNKNOWN_ERROR",
-          errorData.message || response.statusText,
+          errorData.message || errorData.error || response.statusText,
           response.status
         );
       }

@@ -38,22 +38,28 @@ export interface SalePrintResponse {
     saleId: number
     client?: Sale['client']
     pet?: Sale['pet']
-    items: Array<{ name: string; quantity: number; price: number; subtotal: number }>
+    items: Array<{ name: string; quantity: number; price: number; subtotal: number; ivaIncluded?: boolean; ivaRate?: number; netAmount?: number; taxAmount?: number }>
     subtotal: number
     discount: number
     tax: number
     total: number
     payments: Array<{ method: string; amount: number }>
+    taxRate?: number
   }
 }
 
 export interface SaleItem {
   id: string
   saleId: string
-  itemType: 'product' | 'service'
+  itemType: 'product' | 'service' | 'subscription_installment'
   itemId: number
   nameSnapshot: string
   priceSnapshot: number
+  unitPrice?: number
+  ivaIncluded: boolean
+  ivaRate: number
+  netAmount: number
+  taxAmount: number
   quantity: number
   subtotal: number
 }
@@ -75,6 +81,38 @@ export interface CreateSalePayload {
   payments?: Array<{ method: string; amount: number; reference?: string; notes?: string }>
   cashShiftId?: number
   notes?: string
+  subscriptionInstallmentIds?: number[]
+}
+
+export interface PosInstallmentPreparation {
+  client: { id: number; name: string; documentId?: string | null }
+  subscriptionId: number
+  plan: { id: number; name: string }
+  installmentIds: number[]
+  futureInstallmentId?: number | null
+  installments: Array<{
+    id: number
+    periodStart: string
+    periodEnd: string
+    dueDate: string
+    amount: number
+    lateFee: number
+    totalAmount: number
+    status: 'PENDING' | 'PAID' | 'CANCELLED'
+  }>
+  total: number
+}
+
+export async function prepareInstallmentsForPos(data: {
+  clientId: number
+  installmentIds: number[]
+  futureInstallmentId?: number | null
+}) {
+  const response = await post<{ preparation: PosInstallmentPreparation }>(
+    '/subscription-installments/prepare-pos',
+    data,
+  )
+  return response.preparation
 }
 
 // GET /api/sales
@@ -82,8 +120,9 @@ interface SalesResponse {
   sales: Array<Sale & { items?: SaleItem[]; saleItems?: SaleItem[] }>
 }
 
-export async function getSales(): Promise<Sale[]> {
-  const response = await get<SalesResponse>('/sales')
+export async function getSales(filters?: { cashShiftId?: number }): Promise<Sale[]> {
+  const query = filters?.cashShiftId ? `?cashShiftId=${filters.cashShiftId}` : ''
+  const response = await get<SalesResponse>(`/sales${query}`)
   return response.sales.map((sale) => ({
     ...sale,
     items: sale.saleItems ?? sale.items ?? [],
@@ -96,12 +135,18 @@ export async function getSaleById(id: string) {
     throw new Error('El identificador de venta no es válido')
   }
   const response = await get<{ sale: Sale }>(`/sales/${id}`)
-  return response.sale
+  const sale = response.sale as Sale & { saleItems?: SaleItem[] }
+  return { ...sale, items: sale.saleItems ?? sale.items ?? [] }
 }
 
 // POST /api/sales
-export async function createSale(data: CreateSalePayload) {
-  return await post<Sale>('/sales', data)
+export async function createSale(data: CreateSalePayload, idempotencyKey?: string) {
+  const key = idempotencyKey ?? (
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `sale-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  )
+  return await post<Sale>('/sales', data, { idempotencyKey: key })
 }
 
 export interface HoldSalePayload {
@@ -160,6 +205,25 @@ export async function updateSale(id: string, data: UpdateSalePayload) {
 // DELETE /api/sales/:id
 export async function deleteSale(id: string) {
   return await del<void>(`/sales/${id}`)
+}
+
+// DELETE /api/sales/:id is the existing audited cancellation operation.
+// The backend soft-cancels the sale and returns the updated record.
+export async function cancelSale(id: string | number, reason?: string) {
+  const response = await del<Sale & { saleItems?: SaleItem[] }>(`/sales/${id}`, {
+    body: JSON.stringify(reason ? { reason } : {}),
+  })
+  return { ...response, items: response.saleItems ?? response.items ?? [] }
+}
+
+export interface SaleReturnItem {
+  productId: number
+  quantity: number
+  notes?: string
+}
+
+export async function returnSale(id: string | number, items: SaleReturnItem[]) {
+  return await post<{ saleId: number; returned: SaleReturnItem[] }>(`/sales/${id}/return`, { items })
 }
 
 export async function correctSale(id: string | number, data: UpdateSalePayload) {

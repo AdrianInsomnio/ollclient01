@@ -1,14 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, ArrowDownUp, Boxes, Ellipsis, Package, Plus, RefreshCw, Search, Wrench } from 'lucide-react'
+import { AlertCircle, ArrowDownUp, Boxes, Download, Ellipsis, Package, Plus, Printer, RefreshCw, Search, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/lib/api-client'
 import { createProduct, getProductStockMovements, getProducts, adjustProductStock, updateProduct, updateProductStatus, type Product, type ProductPayload, type StockMovement } from '@/lib/api/products'
 import { createService, getServices, updateService, updateServiceStatus, type Service, type ServicePayload } from '@/lib/api/services'
-import { createProductCategory, getProductCategories, updateProductCategory, updateProductCategoryStatus, type ProductCategory } from '@/lib/api/product-categories'
+import { createProductCategory, getProductCategories, getProductSubcategories, updateProductCategory, updateProductCategoryStatus, type ProductCategory } from '@/lib/api/product-categories'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { useAuthStore } from '@/lib/auth-store'
 
 type Tab = 'products' | 'services' | 'categories'
 type DialogKind = 'product' | 'service' | 'category' | null
@@ -28,14 +29,43 @@ type DialogKind = 'product' | 'service' | 'category' | null
 const money = (value?: number | null) => new Intl.NumberFormat('es-UY', { style: 'currency', currency: 'UYU', maximumFractionDigits: 2 }).format(value ?? 0)
 const dateTime = (value: string) => new Intl.DateTimeFormat('es-UY', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 
+function exportProductsCsv(products: Product[]) {
+  const escape = (value: string | number) => `"${String(value ?? '').replaceAll('"', '""')}"`
+  const rows = [
+    ['ID', 'Nombre', 'SKU', 'Categoría', 'Stock', 'Stock mínimo', 'Costo', 'Precio', 'Estado'],
+    ...products.map((product) => [
+      product.id,
+      product.name,
+      product.sku ?? '',
+      product.category?.name ?? '',
+      product.stock,
+      product.minStock,
+      product.cost ?? '',
+      product.price,
+      product.isActive ? 'Activo' : 'Inactivo',
+    ]),
+  ]
+  const csv = `\uFEFF${rows.map((row) => row.map(escape).join(';')).join('\n')}`
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'inventario.csv'
+  link.click()
+  URL.revokeObjectURL(url)
+  toast.success(`${products.length} producto(s) exportado(s).`)
+}
+
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiError && error.status === 409) return 'Ya existe un registro con esos datos.'
   return error instanceof Error ? error.message : fallback
 }
 
 export function InventoryPanel() {
+  const tenantId = useAuthStore((state) => state.tenantId ?? 'unknown')
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('products')
+  const [productStockFilter, setProductStockFilter] = useState('all')
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
   const [dialog, setDialog] = useState<DialogKind>(null)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [editingService, setEditingService] = useState<Service | null>(null)
@@ -43,9 +73,9 @@ export function InventoryPanel() {
   const [stockProduct, setStockProduct] = useState<Product | null>(null)
   const [movementsProduct, setMovementsProduct] = useState<Product | null>(null)
 
-  const productsQuery = useQuery({ queryKey: ['inventory-products'], queryFn: () => getProducts({ includeDiscontinued: true }) })
-  const servicesQuery = useQuery({ queryKey: ['inventory-services'], queryFn: () => getServices() })
-  const categoriesQuery = useQuery({ queryKey: ['inventory-categories'], queryFn: getProductCategories })
+  const productsQuery = useQuery({ queryKey: ['inventory-products', tenantId], queryFn: () => getProducts({ includeDiscontinued: true }), staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false })
+  const servicesQuery = useQuery({ queryKey: ['inventory-services', tenantId], queryFn: () => getServices(), staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false })
+  const categoriesQuery = useQuery({ queryKey: ['inventory-categories', tenantId], queryFn: getProductCategories, staleTime: 10 * 60 * 1000, refetchOnWindowFocus: false })
 
   const invalidate = async () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['inventory-products'] }),
@@ -66,9 +96,12 @@ export function InventoryPanel() {
   const productStats = useMemo(() => {
     const products = productsQuery.data ?? []
     return {
+      total: products.length,
       active: products.filter((product) => product.isActive).length,
+      stocked: products.filter((product) => product.stock > 0).length,
       low: products.filter((product) => product.stock > 0 && product.stock <= product.minStock).length,
       empty: products.filter((product) => product.stock === 0).length,
+      inventoryValue: products.reduce((total, product) => total + product.stock * (product.cost ?? 0), 0),
       services: (servicesQuery.data ?? []).filter((service) => service.isActive).length,
     }
   }, [productsQuery.data, servicesQuery.data])
@@ -83,19 +116,22 @@ export function InventoryPanel() {
     <div className="space-y-8">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div><p className="text-sm font-medium text-muted-foreground">Administración</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">Inventario</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">Gestiona productos, servicios, categorías y existencias de la clínica.</p></div>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void invalidate()}><RefreshCw /> Actualizar</Button><Button variant="outline" onClick={() => openNew('service')}><Wrench /> Nuevo servicio</Button><Button onClick={() => openNew('product')}><Plus /> Nuevo producto</Button></div>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => exportProductsCsv(filteredProducts)}><Download /> Exportar CSV</Button><Button variant="outline" onClick={() => window.print()}><Printer /> Imprimir resumen</Button><Button variant="outline" onClick={() => void invalidate()}><RefreshCw /> Actualizar</Button><Button variant="outline" onClick={() => openNew('service')}><Wrench /> Nuevo servicio</Button><Button onClick={() => openNew('product')}><Plus /> Nuevo producto</Button></div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <SummaryCard label="Total productos" value={productStats.total} icon={<Package />} tone="text-slate-600" />
         <SummaryCard label="Productos activos" value={productStats.active} icon={<Package />} tone="text-blue-600" />
+        <SummaryCard label="Con stock" value={productStats.stocked} icon={<Boxes />} tone="text-emerald-600" />
         <SummaryCard label="Stock bajo" value={productStats.low} icon={<ArrowDownUp />} tone="text-amber-600" />
         <SummaryCard label="Sin stock" value={productStats.empty} icon={<Boxes />} tone="text-rose-600" />
-        <SummaryCard label="Servicios activos" value={productStats.services} icon={<Wrench />} tone="text-emerald-600" />
       </div>
+      <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 py-4"><div><p className="text-sm text-muted-foreground">Valor estimado del inventario</p><p className="text-xl font-semibold tabular-nums">{money(productStats.inventoryValue)}</p></div><p className="text-sm text-muted-foreground">Costo registrado × stock disponible · {productStats.services} servicios activos</p></CardContent></Card>
 
+      {tab === 'products' && <div className="flex flex-wrap items-center justify-end gap-2"><span className="text-sm text-muted-foreground">Filtrar stock</span><NativeFilter value={productStockFilter} onChange={setProductStockFilter} options={[['all', 'Todo el stock'], ['available', 'Disponible'], ['low', 'Stock bajo'], ['empty', 'Sin stock']]} /></div>}
       <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
         <TabsList><TabsTrigger value="products">Productos</TabsTrigger><TabsTrigger value="services">Servicios</TabsTrigger><TabsTrigger value="categories">Categorías</TabsTrigger></TabsList>
-        <TabsContent value="products" className="mt-5"><ProductsTable products={productsQuery.data ?? []} categories={categoriesQuery.data ?? []} onEdit={openEditProduct} onAdjust={setStockProduct} onMovements={setMovementsProduct} onRefresh={() => void invalidate()} /></TabsContent>
+        <TabsContent value="products" className="mt-5"><ProductsTable products={productsQuery.data ?? []} categories={categoriesQuery.data ?? []} stockFilter={productStockFilter} onFilteredChange={setFilteredProducts} onEdit={openEditProduct} onAdjust={setStockProduct} onMovements={setMovementsProduct} onRefresh={() => void invalidate()} /></TabsContent>
         <TabsContent value="services" className="mt-5"><ServicesTable services={servicesQuery.data ?? []} categories={categoriesQuery.data ?? []} onEdit={openEditService} onRefresh={() => void invalidate()} /></TabsContent>
         <TabsContent value="categories" className="mt-5"><CategoriesTable categories={categoriesQuery.data ?? []} onNew={() => openNew('category')} onEdit={openEditCategory} onRefresh={() => void invalidate()} /></TabsContent>
       </Tabs>
@@ -113,18 +149,20 @@ function SummaryCard({ label, value, icon, tone }: { label: string; value: numbe
   return <Card size="sm"><CardContent className="flex items-center gap-3"><div className={`rounded-md bg-muted p-2 ${tone}`}>{icon}</div><div><p className="text-sm text-muted-foreground">{label}</p><p className="text-2xl font-semibold tabular-nums">{value}</p></div></CardContent></Card>
 }
 
-function ProductsTable({ products, categories, onEdit, onAdjust, onMovements, onRefresh }: { products: Product[]; categories: ProductCategory[]; onEdit: (product: Product) => void; onAdjust: (product: Product) => void; onMovements: (product: Product) => void; onRefresh: () => void }) {
+function ProductsTable({ products, categories, stockFilter, onFilteredChange, onEdit, onAdjust, onMovements, onRefresh }: { products: Product[]; categories: ProductCategory[]; stockFilter: string; onFilteredChange: (products: Product[]) => void; onEdit: (product: Product) => void; onAdjust: (product: Product) => void; onMovements: (product: Product) => void; onRefresh: () => void }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [category, setCategory] = useState('all')
-  const filtered = products.filter((product) => {
+  const filtered = useMemo(() => products.filter((product) => {
     const matchesSearch = `${product.name} ${product.sku ?? ''}`.toLowerCase().includes(search.toLowerCase())
     const matchesStatus = status === 'all' || (status === 'active' ? product.isActive : !product.isActive)
+    const matchesStock = stockFilter === 'all' || (stockFilter === 'available' ? product.stock > 0 : stockFilter === 'low' ? product.stock > 0 && product.stock <= product.minStock : product.stock === 0)
     const matchesCategory = category === 'all' || String(product.categoryId ?? '') === category
-    return matchesSearch && matchesStatus && matchesCategory
-  })
+    return matchesSearch && matchesStatus && matchesStock && matchesCategory
+  }), [products, search, status, stockFilter, category])
+  useEffect(() => onFilteredChange(filtered), [filtered, onFilteredChange])
   const statusMutation = useMutation({ mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) => updateProductStatus(id, isActive), onSuccess: () => { toast.success('Estado del producto actualizado.'); onRefresh() }, onError: (error) => toast.error(errorMessage(error, 'No se pudo actualizar el producto.')) })
-  return <Card><CardHeader className="gap-4"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><CardTitle className="text-base">Catálogo de productos</CardTitle><div className="flex flex-col gap-2 sm:flex-row"><div className="relative"><Search className="absolute left-2.5 top-2 size-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar producto o SKU" className="pl-8 sm:w-64" /></div><NativeFilter value={status} onChange={setStatus} options={[['all', 'Todos los estados'], ['active', 'Activos'], ['inactive', 'Inactivos']]} /><NativeFilter value={category} onChange={setCategory} options={[['all', 'Todas las categorías'], ...categories.map((item) => [String(item.id), item.name])]} /></div></div></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow>{['Producto', 'SKU', 'Categoría', 'Precio', 'Costo', 'Stock', 'Stock mínimo', 'Estado', 'Acciones'].map((head) => <TableHead key={head}>{head}</TableHead>)}</TableRow></TableHeader><TableBody>{filtered.length === 0 ? <EmptyRow colSpan={9} text={search || status !== 'all' || category !== 'all' ? 'No hay productos para estos filtros.' : 'No hay productos registrados'} /> : filtered.map((product) => <TableRow key={product.id}><TableCell><div className="font-medium">{product.name}</div><div className="max-w-48 truncate text-xs text-muted-foreground">{product.description || 'Sin descripción'}</div></TableCell><TableCell>{product.sku || '—'}</TableCell><TableCell>{product.category?.name || categories.find((item) => item.id === product.categoryId)?.name || 'Sin categoría'}</TableCell><TableCell>{money(product.price)}</TableCell><TableCell>{product.cost == null ? '—' : money(product.cost)}</TableCell><TableCell><StockBadge product={product} /></TableCell><TableCell>{product.minStock}</TableCell><TableCell><Badge variant={product.isActive ? 'success' : 'neutral'}>{product.isActive ? 'Activo' : 'Inactivo'}</Badge></TableCell><TableCell><ProductActions product={product} onEdit={onEdit} onAdjust={onAdjust} onMovements={onMovements} onToggle={(isActive) => statusMutation.mutate({ id: product.id, isActive })} /></TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
+  return <Card><CardHeader className="gap-4"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><CardTitle className="text-base">Catálogo de productos</CardTitle><div className="flex flex-col gap-2 sm:flex-row"><div className="relative"><Search className="absolute left-2.5 top-2 size-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar producto o SKU" className="pl-8 sm:w-64" /></div><NativeFilter value={status} onChange={setStatus} options={[['all', 'Todos los estados'], ['active', 'Activos'], ['inactive', 'Inactivos']]} /><NativeFilter value={category} onChange={setCategory} options={[['all', 'Todas las categorías'], ...categories.map((item) => [String(item.id), item.name])]} /></div></div></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow>{['Producto', 'SKU', 'Categoría', 'Precio', 'Costo', 'Stock', 'Stock mínimo', 'Estado', 'Acciones'].map((head) => <TableHead key={head}>{head}</TableHead>)}</TableRow></TableHeader><TableBody>{filtered.length === 0 ? <EmptyRow colSpan={9} text={search || status !== 'all' || category !== 'all' ? 'No hay productos para estos filtros.' : 'No hay productos registrados'} /> : filtered.map((product) => <TableRow key={product.id}><TableCell><div className="font-medium">{product.name}</div><div className="max-w-48 truncate text-xs text-muted-foreground">{product.description || 'Sin descripción'}</div></TableCell><TableCell>{product.sku || '—'}</TableCell><TableCell>{product.category?.name || categories.find((item) => item.id === product.categoryId)?.name || 'Sin categoría'}</TableCell><TableCell><div>{money(product.price)}</div>{product.ivaIncluded && <Badge variant="outline" className="mt-1 text-[10px]">IVA incluido</Badge>}</TableCell><TableCell>{product.cost == null ? '—' : money(product.cost)}</TableCell><TableCell><StockBadge product={product} /></TableCell><TableCell>{product.minStock}</TableCell><TableCell><Badge variant={product.isActive ? 'success' : 'neutral'}>{product.isActive ? 'Activo' : 'Inactivo'}</Badge></TableCell><TableCell><ProductActions product={product} onEdit={onEdit} onAdjust={onAdjust} onMovements={onMovements} onToggle={(isActive) => statusMutation.mutate({ id: product.id, isActive })} /></TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
 }
 
 function ServicesTable({ services, categories, onEdit, onRefresh }: { services: Service[]; categories: ProductCategory[]; onEdit: (service: Service) => void; onRefresh: () => void }) {
@@ -156,11 +194,12 @@ function NativeFilter({ value, onChange, options }: { value: string; onChange: (
 function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) { return <TableRow><TableCell colSpan={colSpan} className="h-32 text-center text-muted-foreground"><Package className="mx-auto mb-2 size-6" />{text}</TableCell></TableRow> }
 
 function ProductDialog({ open, product, categories, onOpenChange, onSaved }: { open: boolean; product: Product | null; categories: ProductCategory[]; onOpenChange: (open: boolean) => void; onSaved: () => void }) {
-  const [form, setForm] = useState<ProductPayload>(() => productForm(product)); const [availableCategories, setAvailableCategories] = useState(categories); const [error, setError] = useState('')
+  const tenantId = useAuthStore((state) => state.tenantId ?? 'unknown')
+  const [form, setForm] = useState<ProductPayload>(() => productForm(product)); const subcategoriesQuery = useQuery({ queryKey: ['inventory-subcategories-form', tenantId, form.categoryId], queryFn: () => getProductSubcategories(Number(form.categoryId)), enabled: Boolean(form.categoryId), staleTime: 10 * 60 * 1000 }); const [availableCategories, setAvailableCategories] = useState(categories); const [error, setError] = useState('')
   const mutation = useMutation({ mutationFn: () => product ? updateProduct(product.id, form) : createProduct(form), onSuccess: () => { toast.success(product ? 'Producto actualizado correctamente.' : 'Producto creado correctamente.'); onSaved() }, onError: (error) => setError(errorMessage(error, 'No se pudo guardar el producto.')) })
   const update = <K extends keyof ProductPayload>(key: K, value: ProductPayload[K]) => setForm((current) => ({ ...current, [key]: value }))
   const submit = (event: React.FormEvent) => { event.preventDefault(); setError(''); if (!form.name.trim()) return setError('El nombre es obligatorio.'); if (form.price < 0 || (form.cost != null && form.cost < 0) || form.stock < 0 || form.minStock < 0) return setError('Los valores de precio, costo y stock no pueden ser negativos.'); mutation.mutate() }
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>{product ? 'Editar producto' : 'Nuevo producto'}</DialogTitle><DialogDescription>Los datos se guardan en la clínica activa del usuario autenticado.</DialogDescription></DialogHeader><form onSubmit={submit} className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><Field label="Nombre *"><Input value={form.name} onChange={(event) => update('name', event.target.value)} /></Field><Field label="SKU"><Input value={form.sku ?? ''} onChange={(event) => update('sku', event.target.value || undefined)} /></Field><CategoryPicker value={form.categoryId ? String(form.categoryId) : 'none'} categories={availableCategories} onChange={(value) => update('categoryId', value === 'none' ? undefined : Number(value))} onCreated={(category) => { setAvailableCategories((current) => [...current, category]); update('categoryId', category.id) }} /><Field label="Descripción"><Textarea value={form.description ?? ''} onChange={(event) => update('description', event.target.value || undefined)} rows={2} /></Field></div><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Field label="Precio *"><Input type="number" min="0" step="0.01" value={form.price} onChange={(event) => update('price', Number(event.target.value))} /></Field><Field label="Costo"><Input type="number" min="0" step="0.01" value={form.cost ?? ''} onChange={(event) => update('cost', event.target.value === '' ? undefined : Number(event.target.value))} /></Field><Field label="Stock inicial"><Input type="number" min="0" step="1" value={form.stock} onChange={(event) => update('stock', Number(event.target.value))} /></Field><Field label="Stock mínimo"><Input type="number" min="0" step="1" value={form.minStock} onChange={(event) => update('minStock', Number(event.target.value))} /></Field></div><CheckboxField label="Producto activo" checked={form.isActive} onChange={(checked) => update('isActive', checked)} />{error && <p className="text-sm text-destructive">{error}</p>}<DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button type="submit" disabled={mutation.isPending}>{mutation.isPending && <RefreshCw className="animate-spin" />} {product ? 'Guardar cambios' : 'Crear producto'}</Button></DialogFooter></form></DialogContent></Dialog>
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>{product ? 'Editar producto' : 'Nuevo producto'}</DialogTitle><DialogDescription>Los datos se guardan en la clínica activa del usuario autenticado.</DialogDescription></DialogHeader><form onSubmit={submit} className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><Field label="Nombre *"><Input value={form.name} onChange={(event) => update('name', event.target.value)} /></Field><Field label="SKU"><Input value={form.sku ?? ''} onChange={(event) => update('sku', event.target.value || undefined)} /></Field><Field label="Código de barras"><Input value={form.barcode ?? ''} onChange={(event) => update('barcode', event.target.value || undefined)} /></Field><Field label="Marca"><Input value={form.brand ?? ''} onChange={(event) => update('brand', event.target.value || undefined)} /></Field><Field label="Proveedor"><Input value={form.supplier ?? ''} onChange={(event) => update('supplier', event.target.value || undefined)} /></Field><CategoryPicker value={form.categoryId ? String(form.categoryId) : 'none'} categories={availableCategories} onChange={(value) => { const categoryId = value === 'none' ? undefined : Number(value); setForm((current) => ({ ...current, categoryId, subcategoryId: undefined })) }} onCreated={(category) => { setAvailableCategories((current) => [...current, category]); update('categoryId', category.id) }} /><Field label="Subcategoría"><select value={form.subcategoryId ? String(form.subcategoryId) : 'none'} onChange={(event) => update('subcategoryId', event.target.value === 'none' ? undefined : Number(event.target.value))} disabled={!form.categoryId || subcategoriesQuery.isLoading} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"><option value="none">Sin subcategoría</option>{(subcategoriesQuery.data ?? []).filter((subcategory) => subcategory.isActive).map((subcategory) => <option key={subcategory.id} value={String(subcategory.id)}>{subcategory.name}</option>)}</select></Field><Field label="Descripción"><Textarea value={form.description ?? ''} onChange={(event) => update('description', event.target.value || undefined)} rows={2} /></Field></div><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"><Field label="Tipo de precio"><select value={form.priceType} onChange={(event) => { const priceType = event.target.value as ProductPayload['priceType']; update('priceType', priceType); if (priceType === 'VARIABLE') update('price', 0) }} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"><option value="FIXED">Fijo</option><option value="VARIABLE">Variable</option></select></Field><Field label="Precio *"><Input type="number" min="0" step="0.01" value={form.price} disabled={form.priceType === 'VARIABLE'} onChange={(event) => update('price', Number(event.target.value))} /></Field>{form.ivaIncluded && <div className="text-xs text-muted-foreground">Precio sin IVA: {money(form.price / 1.22)} · IVA 22%: {money(form.price - form.price / 1.22)} · Precio final: {money(form.price)}</div>}<Field label="Costo"><Input type="number" min="0" step="0.01" value={form.cost ?? ''} onChange={(event) => update('cost', event.target.value === '' ? undefined : Number(event.target.value))} /></Field><Field label="Stock inicial"><Input type="number" min="0" step="1" value={form.stock} onChange={(event) => update('stock', Number(event.target.value))} /></Field><Field label="Stock mínimo"><Input type="number" min="0" step="1" value={form.minStock} onChange={(event) => update('minStock', Number(event.target.value))} /></Field><Field label="Stock máximo"><Input type="number" min="0" step="1" value={form.maxStock ?? ''} onChange={(event) => update('maxStock', event.target.value === '' ? undefined : Number(event.target.value))} /></Field></div><CheckboxField label="IVA incluido en el precio final" checked={form.ivaIncluded} onChange={(checked) => update("ivaIncluded", checked)} /><CheckboxField label="Producto activo" checked={form.isActive} onChange={(checked) => update('isActive', checked)} />{error && <p className="text-sm text-destructive">{error}</p>}<DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button type="submit" disabled={mutation.isPending}>{mutation.isPending && <RefreshCw className="animate-spin" />} {product ? 'Guardar cambios' : 'Crear producto'}</Button></DialogFooter></form></DialogContent></Dialog>
 }
 
 function ServiceDialog({ open, service, categories, onOpenChange, onSaved }: { open: boolean; service: Service | null; categories: ProductCategory[]; onOpenChange: (open: boolean) => void; onSaved: () => void }) {
@@ -202,7 +241,7 @@ function CategoryPicker({ value, categories, valueMode, onChange, onCreated }: {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="space-y-2"><Label>{label}</Label>{children}</div> }
 function CheckboxField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) { return <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="size-4 rounded border-input accent-primary" />{label}</label> }
-function productForm(product: Product | null): ProductPayload { return { name: product?.name ?? '', description: product?.description ?? undefined, sku: product?.sku ?? undefined, categoryId: product?.categoryId ?? undefined, price: product?.price ?? 0, cost: product?.cost ?? undefined, stock: product?.stock ?? 0, minStock: product?.minStock ?? 0, isActive: product?.isActive ?? true } }
+function productForm(product: Product | null): ProductPayload { return { name: product?.name ?? '', description: product?.description ?? undefined, sku: product?.sku ?? undefined, categoryId: product?.categoryId ?? undefined, subcategoryId: product?.subcategoryId ?? undefined, priceType: product?.priceType ?? 'FIXED', price: product?.price ?? 0, ivaIncluded: product?.ivaIncluded ?? true, cost: product?.cost ?? undefined, stock: product?.stock ?? 0, minStock: product?.minStock ?? 0, maxStock: product?.maxStock ?? undefined, isActive: product?.isActive ?? true } }
 function serviceCategoryName(category: Service['category'], categories: ProductCategory[]) { if (!category) return '—'; return categories.find((item) => String(item.id) === String(category))?.name ?? category }
 function serviceForm(service: Service | null): ServicePayload { return { name: service?.name ?? '', description: service?.description ?? undefined, price: service?.price ?? 0, duration: service?.duration ?? undefined, category: service?.category ?? undefined, isActive: service?.isActive ?? true } }
 function ErrorState({ onRetry }: { onRetry: () => void }) { return <Card><CardContent className="flex flex-col items-center gap-3 py-14 text-center"><AlertCircle className="size-8 text-muted-foreground" /><p className="font-medium">No se pudo cargar el inventario</p><p className="text-sm text-muted-foreground">Verifica tu conexión e inténtalo nuevamente.</p><Button variant="outline" onClick={onRetry}><RefreshCw /> Reintentar</Button></CardContent></Card> }

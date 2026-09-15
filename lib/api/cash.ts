@@ -3,7 +3,7 @@ import { get, patch, post } from "../api-client";
 export type CashShiftStatus = "OPEN" | "CLOSED" | "CANCELLED";
 export type CashMovementType = "CASH_IN" | "CASH_OUT" | "ADJUSTMENT";
 
-export interface CashRegister { id: number; name: string; code?: string | null }
+export interface CashRegister { id: number; name: string; code?: string | null; isActive?: boolean }
 export interface CashUser { id: number; username: string; email?: string | null }
 export interface CashShift {
   id: number; status: CashShiftStatus; openedAt: string; closedAt?: string | null;

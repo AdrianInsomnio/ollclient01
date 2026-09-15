@@ -31,6 +31,7 @@ import {
   type ConsultationSchedule,
 } from "@/lib/workstation/schedule.mock"
 import { workspaceToast } from "@/lib/workstation/toast"
+import { useAuthStore } from "@/lib/auth-store"
 
 import {
   Dialog,
@@ -64,6 +65,7 @@ export default function VetConsultationDetailPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const consultationId = params?.id ?? ""
+  const tenantId = useAuthStore((state) => state.tenantId ?? "unknown")
 
   // Datos clinicos.
   const consultationQuery = useQuery({
@@ -80,12 +82,12 @@ export default function VetConsultationDetailPage() {
 
   // Catalogo comercial.
   const productsQuery = useQuery({
-    queryKey: ["products", "active"],
+    queryKey: ["products", "active", tenantId],
     queryFn: () => getProducts({ isActive: true }),
   })
 
   const servicesQuery = useQuery({
-    queryKey: ["services", "active"],
+    queryKey: ["services", "active", tenantId],
     queryFn: () => getServices({ isActive: true }),
   })
 
@@ -225,6 +227,9 @@ export default function VetConsultationDetailPage() {
         queryKey: ["consultation", consultationId],
       })
       queryClient.invalidateQueries({ queryKey: ["sales"] })
+      queryClient.invalidateQueries({ queryKey: ["products", "active", tenantId] })
+      queryClient.invalidateQueries({ queryKey: ["inventory-products", tenantId] })
+      queryClient.invalidateQueries({ queryKey: ["inventory-viewer-products", tenantId] })
       const consultationIdSafe = consultation!.id
       const saleId = sale?.id ?? consultationIdSafe
       workspaceToast.saleRegistered(

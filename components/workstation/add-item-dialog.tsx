@@ -19,6 +19,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 import type { Product } from "@/lib/api/products"
@@ -35,6 +36,7 @@ type CatalogItem = {
   id: number
   name: string
   priceCents: ReturnType<typeof toCentsSafe>
+  priceType?: Product["priceType"]
 }
 
 interface AddItemDialogProps {
@@ -60,6 +62,8 @@ export function AddItemDialog(props: AddItemDialogProps) {
 
   const [tab, setTab] = useState<"productos" | "servicios">("productos")
   const [search, setSearch] = useState("")
+  const [variableItem, setVariableItem] = useState<CatalogItem | null>(null)
+  const [variablePrice, setVariablePrice] = useState("")
 
   const productCatalog = useMemo<CatalogItem[]>(
     () =>
@@ -68,6 +72,7 @@ export function AddItemDialog(props: AddItemDialogProps) {
         id: p.id,
         name: p.name,
         priceCents: toCentsSafe(p.price),
+        priceType: p.priceType,
       })),
     [products],
   )
@@ -93,6 +98,11 @@ export function AddItemDialog(props: AddItemDialogProps) {
   }, [list, search])
 
   const handleAdd = (item: CatalogItem) => {
+    if (item.kind === "product" && item.priceType === "VARIABLE") {
+      setVariableItem(item)
+      setVariablePrice("")
+      return
+    }
     onAdd({
       key: newCartKey(),
       kind: item.kind,
@@ -105,10 +115,28 @@ export function AddItemDialog(props: AddItemDialogProps) {
     setSearch("")
   }
 
+  const confirmVariableAdd = () => {
+    const price = Number(variablePrice)
+    if (!variableItem || !Number.isFinite(price) || price <= 0) return
+    onAdd({
+      key: newCartKey(),
+      kind: variableItem.kind,
+      itemId: variableItem.id,
+      name: variableItem.name,
+      unitPriceCents: toCentsSafe(price),
+      quantity: 1,
+    })
+    setVariableItem(null)
+    setVariablePrice("")
+    onOpenChange(false)
+    setSearch("")
+  }
+
   const isLoading = loading
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Agregar item a la venta</DialogTitle>
@@ -185,7 +213,7 @@ export function AddItemDialog(props: AddItemDialogProps) {
                       {item.name}
                     </div>
                     <div className="text-muted-foreground text-xs">
-                      {formatMoney(item.priceCents)}
+                      {item.priceType === "VARIABLE" ? "Importe variable" : formatMoney(item.priceCents)}
                     </div>
                   </div>
                   <Button
@@ -221,5 +249,35 @@ export function AddItemDialog(props: AddItemDialogProps) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <Dialog open={Boolean(variableItem)} onOpenChange={(open) => !open && setVariableItem(null)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Definir importe</DialogTitle>
+          <DialogDescription>
+            {variableItem?.name} es un producto especial sin control de stock.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="consultation-variable-price">Importe de venta</Label>
+          <Input
+            id="consultation-variable-price"
+            type="number"
+            min="0.01"
+            step="0.01"
+            autoFocus
+            value={variablePrice}
+            onChange={(event) => setVariablePrice(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") confirmVariableAdd()
+            }}
+          />
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setVariableItem(null)}>Cancelar</Button>
+          <Button type="button" onClick={confirmVariableAdd} disabled={!variablePrice || Number(variablePrice) <= 0}>Agregar</Button>
+        </DialogFooter>
+      </DialogContent>
+      </Dialog>
+    </>
   )
 }

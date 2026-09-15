@@ -1,5 +1,5 @@
 import { InventoryViewerPanel } from '@/components/inventory/inventory-viewer-panel'
 
-export default function UserInventarioPage() {
+export default function VeterinarianInventarioPage() {
   return <InventoryViewerPanel />
 }

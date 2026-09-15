@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Banknote,
@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -86,24 +87,35 @@ import {
   getDraftSales,
   getSaleById,
   getWaitingSales,
+  prepareInstallmentsForPos,
+  type PosInstallmentPreparation,
   resumeWaitingSale,
   updateSale,
   type Sale,
 } from "@/lib/api/sales";
 import { getCashRegisters, getCurrentCashShift } from "@/lib/api/cash";
 import { getConsultation, type Consultation } from "@/lib/api/consultations";
+import { getClientInstallments } from "@/lib/api/subscriptions";
 import { printSaleTicket } from "@/lib/local-printer";
+import { calculateFiscalAmounts } from "@/lib/workstation/fiscal";
 
 type Client = Pick<ApiClient, "id" | "name" | "documentId">;
 type CartItem = {
   itemType: "product" | "service";
   item: Product | Service;
   quantity: number;
+  unitPrice?: number;
+};
+type SubscriptionCharge = {
+  id: number;
+  periodStart: string;
+  periodEnd: string;
+  dueDate: string;
+  totalAmount: number;
 };
 type PaymentLine = { method: string; amount: string };
 type CatalogFilter = "all" | "products" | "services";
 
-const TAX_RATE = 0.14;
 const money = (value: number) =>
   new Intl.NumberFormat("es-UY", {
     style: "currency",
@@ -138,6 +150,8 @@ export default function PosPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const user = useAuthStore((state) => state.user);
+  const tenantId = useAuthStore((state) => state.tenantId ?? "unknown");
+  const queryClient = useQueryClient();
   const searchRef = useRef<HTMLInputElement>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [clientSearch, setClientSearch] = useState("");
@@ -147,6 +161,9 @@ export default function PosPage() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [variableProduct, setVariableProduct] = useState<Product | null>(null);
+  const [variablePrice, setVariablePrice] = useState("");
+  const [subscriptionCharges, setSubscriptionCharges] = useState<SubscriptionCharge[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -159,12 +176,24 @@ export default function PosPage() {
   ]);
   const [resumedSaleId, setResumedSaleId] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
+  const draftIdRef = useRef<string | null>(null);
+  const draftSaveInFlightRef = useRef(false);
+  const draftSavePromiseRef = useRef<Promise<void> | null>(null);
+  const checkoutInFlightRef = useRef(false);
   const [pendingDraft, setPendingDraft] = useState<Sale | null>(null);
   const [waitingSales, setWaitingSales] = useState<Sale[]>([]);
   const [waitingOpen, setWaitingOpen] = useState(false);
   const [waitingLoading, setWaitingLoading] = useState(false);
+  const [matchingWaitingSale, setMatchingWaitingSale] = useState<Sale | null>(null);
+  const [matchingWaitingOpen, setMatchingWaitingOpen] = useState(false);
   const [clientOpen, setClientOpen] = useState(false);
+  const [installmentOpen, setInstallmentOpen] = useState(false);
+  const [availableInstallments, setAvailableInstallments] = useState<PosInstallmentPreparation["installments"]>([]);
+  const [selectedInstallmentIds, setSelectedInstallmentIds] = useState<number[]>([]);
+  const [installmentLoading, setInstallmentLoading] = useState(false);
+  const [installmentPreparing, setInstallmentPreparing] = useState(false);
   const [replaceCartOpen, setReplaceCartOpen] = useState(false);
+  const [clearTicketOpen, setClearTicketOpen] = useState(false);
   const [cancelSale, setCancelSale] = useState<Sale | null>(null);
   const [draftSaveInFlight, setDraftSaveInFlight] = useState(false);
   const [completedSales, setCompletedSales] = useState(0);
@@ -176,7 +205,7 @@ export default function PosPage() {
   const clinicName = user?.clinics?.[0]?.name ?? "Clínica Veterinaria";
   const userName = user?.username ?? user?.email ?? "Usuario actual";
   const productsQuery = useQuery({
-    queryKey: ["products", "active"],
+    queryKey: ["products", "active", tenantId],
     queryFn: () => getProducts({ isActive: true }),
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
@@ -184,7 +213,7 @@ export default function PosPage() {
     refetchOnWindowFocus: false,
   });
   const servicesQuery = useQuery({
-    queryKey: ["services", "active"],
+    queryKey: ["services", "active", tenantId],
     queryFn: () => getServices({ isActive: true }),
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
@@ -256,6 +285,14 @@ export default function PosPage() {
     }
   }, [cashShiftId]);
 
+  const insufficientStockItem = cart.find(
+    (entry) =>
+      entry.itemType === "product" &&
+      (entry.item as Product).priceType !== "VARIABLE" &&
+      entry.quantity > (entry.item as Product).stock,
+  );
+  const hasInsufficientStock = Boolean(insufficientStockItem);
+
   useEffect(() => {
     void Promise.all([
       loadClients(),
@@ -264,6 +301,33 @@ export default function PosPage() {
       setInitialLoading(false);
     });
   }, [loadCashShift, loadClients]);
+
+  useEffect(() => {
+    const rawIds = searchParams.get("subscriptionInstallmentIds");
+    const clientId = searchParams.get("clientId");
+    if (!rawIds || !clientId || subscriptionCharges.length || cart.length) return;
+    const installmentIds = rawIds.split(",").map(Number).filter((id) => Number.isInteger(id) && id > 0);
+    if (!installmentIds.length) return;
+    void prepareInstallmentsForPos({ clientId: Number(clientId), installmentIds })
+      .then((preparation) => {
+        setSelectedClientId(String(preparation.client.id));
+        setSelectedClient({
+          ...preparation.client,
+          id: String(preparation.client.id),
+          documentId: preparation.client.documentId ?? undefined,
+        });
+        setSubscriptionCharges(preparation.installments.map((item) => ({
+          id: item.id,
+          periodStart: item.periodStart,
+          periodEnd: item.periodEnd,
+          dueDate: item.dueDate,
+          totalAmount: Number(item.totalAmount),
+        })));
+        setDiscountRate("0");
+        toast.success("Cuotas cargadas en el POS.");
+      })
+      .catch((error) => toast.error(errorText(error, "No se pudieron cargar las cuotas en el POS.")));
+  }, [cart.length, searchParams, subscriptionCharges.length]);
   useEffect(() => {
     if (cashShiftId) void refreshWaiting();
   }, [cashShiftId, refreshWaiting]);
@@ -334,7 +398,7 @@ export default function PosPage() {
   ]);
 
   const restoreSale = useCallback(
-    async (saleId: string) => {
+    async (saleId: string, additionalItems: CartItem[] = []) => {
       const sale = await getSaleById(saleId);
       const client = await getClient(String(sale.clientId));
       const restoredItems = (sale.saleItems ?? sale.items ?? [])
@@ -354,7 +418,18 @@ export default function PosPage() {
         .filter((item): item is CartItem => item !== null);
       setSelectedClientId(String(sale.clientId));
       setSelectedClient(client as Client);
-      setCart(restoredItems);
+      const mergedItems = [...restoredItems];
+      additionalItems.forEach((additionalItem) => {
+        const existing = mergedItems.find(
+          (entry) =>
+            entry.itemType === additionalItem.itemType &&
+            entry.item.id === additionalItem.item.id,
+        );
+        if (existing) existing.quantity += additionalItem.quantity;
+        else mergedItems.push(additionalItem);
+      });
+      setCart(mergedItems);
+      draftIdRef.current = String(sale.id);
       setDraftId(String(sale.id));
       setActiveConsultationId(
         sale.consultationId ? String(sale.consultationId) : null,
@@ -408,9 +483,9 @@ export default function PosPage() {
         setWaitingOpen(true);
         void refreshWaiting();
       }
-      if (event.key === "F12") {
+      if (event.key === "F8") {
         event.preventDefault();
-        if (cart.length > 0) void handleCheckout();
+        if (hasTicketItems && !hasInsufficientStock) void handleCheckout();
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -428,34 +503,49 @@ export default function PosPage() {
       !activeClientIdForDraft ||
       cart.length === 0 ||
       submitting ||
-      draftSaveInFlight
+      draftSaveInFlightRef.current ||
+      cart.some((entry) => entry.itemType === "product" && (entry.item as Product).priceType !== "VARIABLE" && entry.quantity > (entry.item as Product).stock)
     )
       return;
     const timer = window.setTimeout(async () => {
+      draftSaveInFlightRef.current = true;
       setDraftSaveInFlight(true);
-      try {
+      const savePromise = (async () => {
         const payload = {
           clientId: Number(activeClientIdForDraft),
           items: cart.map((entry) => ({
             itemType: entry.itemType,
             itemId: entry.item.id,
             quantity: entry.quantity,
-            ...(entry.itemType === "service"
+            ...(entry.itemType === "service" || (entry.itemType === "product" && (entry.item as Product).priceType === "VARIABLE")
               ? {
                   nameSnapshot: entry.item.name,
-                  priceSnapshot: entry.item.price,
+                  priceSnapshot: entry.unitPrice ?? entry.item.price,
                 }
               : {}),
           })),
           discount: Number(discountRate) || 0,
         };
-        const draft = draftId
-          ? await updateSale(draftId, payload)
+        const draft = draftIdRef.current
+          ? await updateSale(draftIdRef.current, payload)
           : await createDraftSale(payload);
+        draftIdRef.current = String(draft.id);
         setDraftId(String(draft.id));
+      })();
+      draftSavePromiseRef.current = savePromise;
+      try {
+        await savePromise;
       } catch (error) {
-        toast.error(errorText(error, "No se pudo guardar el borrador."));
+        if (!checkoutInFlightRef.current) {
+          toast.error(errorText(error, "No se pudo guardar el borrador."), {
+            id: "pos-draft-save-error",
+          });
+        }
       } finally {
+        if (draftSavePromiseRef.current === savePromise) {
+          draftSavePromiseRef.current = null;
+        }
+        draftSaveInFlightRef.current = false;
         setDraftSaveInFlight(false);
       }
     }, 700);
@@ -464,10 +554,9 @@ export default function PosPage() {
     cart,
     clients,
     discountRate,
-    draftId,
     selectedClientId,
     submitting,
-    draftSaveInFlight,
+    hasInsufficientStock,
   ]);
 
   const filteredClients = useMemo(
@@ -521,13 +610,18 @@ export default function PosPage() {
   const activeClient = selectedClient ?? genericClient;
   const activeClientId =
     selectedClientId ?? (genericClient ? String(genericClient.id) : null);
-  const subtotal = cart.reduce(
-    (sum, entry) => sum + Number(entry.item.price) * entry.quantity,
-    0,
-  );
+  const fiscalLines = cart.map((entry) => calculateFiscalAmounts(
+    Number(entry.unitPrice ?? entry.item.price),
+    entry.quantity,
+    entry.itemType === "product" ? (entry.item as Product).ivaIncluded !== false : false,
+  ));
+  const netSubtotal = fiscalLines.reduce((sum, line) => sum + (line.netCents as number), 0) / 100;
+  const taxSubtotal = fiscalLines.reduce((sum, line) => sum + (line.taxCents as number), 0) / 100;
+  const subtotal = netSubtotal + subscriptionCharges.reduce((sum, item) => sum + item.totalAmount, 0);
   const discount = (subtotal * (Number(discountRate) || 0)) / 100;
-  const tax = (subtotal - discount) * TAX_RATE;
+  const tax = subscriptionCharges.length ? 0 : taxSubtotal * (1 - (Number(discountRate) || 0) / 100);
   const total = subtotal - discount + tax;
+  const hasTicketItems = cart.length > 0 || subscriptionCharges.length > 0;
   const paid = paymentLines.reduce(
     (sum, line, index) =>
       sum +
@@ -544,18 +638,112 @@ export default function PosPage() {
       setSelectedClientId(clientId);
       setSelectedClient(client as Client);
       setClientOpen(false);
+      let waitingSale = waitingSales.find(
+        (sale) => String(sale.clientId) === String(clientId),
+      );
+      if (!waitingSale && cashShiftId) {
+        const currentWaitingSales = await getWaitingSales(cashShiftId);
+        setWaitingSales(currentWaitingSales);
+        waitingSale = currentWaitingSales.find(
+          (sale) => String(sale.clientId) === String(clientId),
+        );
+      }
+      if (waitingSale) {
+        setMatchingWaitingSale(waitingSale);
+        setMatchingWaitingOpen(true);
+        return;
+      }
       toast.success("Tutor asociado al ticket.");
     } catch (error) {
       toast.error(errorText(error, "No se pudo cargar el cliente."));
+    }
+  };
+
+  const openInstallmentPicker = async () => {
+    if (!selectedClientId) return toast.error("Selecciona un cliente antes de cargar cuotas.");
+    if (cart.length) return toast.error("Vacía los productos o servicios del ticket antes de cargar cuotas.");
+    setInstallmentLoading(true);
+    try {
+      setAvailableInstallments(await getClientInstallments(selectedClientId));
+      setSelectedInstallmentIds([]);
+      setInstallmentOpen(true);
+    } catch (error) {
+      toast.error(errorText(error, "No se pudieron cargar las cuotas pendientes."));
+    } finally {
+      setInstallmentLoading(false);
+    }
+  };
+
+  const toggleInstallment = (installment: PosInstallmentPreparation["installments"][number]) => {
+    setSelectedInstallmentIds((current) => {
+      if (current.includes(installment.id)) return current.filter((id) => id !== installment.id);
+      const isFuture = new Date(installment.dueDate) > new Date();
+      const withoutFuture = current.filter((id) => {
+        const item = availableInstallments.find((candidate) => candidate.id === id);
+        return !item || new Date(item.dueDate) <= new Date();
+      });
+      return isFuture ? [...withoutFuture, installment.id] : [...current, installment.id];
+    });
+  };
+
+  const loadInstallmentsInTicket = async () => {
+    if (!selectedClientId || !selectedInstallmentIds.length) return;
+    setInstallmentPreparing(true);
+    try {
+      const futureInstallmentId = availableInstallments.find((item) => selectedInstallmentIds.includes(item.id) && new Date(item.dueDate) > new Date())?.id;
+      const preparation = await prepareInstallmentsForPos({ clientId: Number(selectedClientId), installmentIds: selectedInstallmentIds, futureInstallmentId });
+      setCart([]);
+      setSubscriptionCharges(preparation.installments.map((item) => ({ id: item.id, periodStart: item.periodStart, periodEnd: item.periodEnd, dueDate: item.dueDate, totalAmount: Number(item.totalAmount) })));
+      setDiscountRate("0");
+      setInstallmentOpen(false);
+      toast.success("Cuotas cargadas en el ticket.");
+    } catch (error) {
+      toast.error(errorText(error, "No se pudieron preparar las cuotas."));
+    } finally {
+      setInstallmentPreparing(false);
     }
   };
   const addToCart = (
     item: Product | Service,
     itemType: CartItem["itemType"],
   ) => {
+    if (subscriptionCharges.length) {
+      toast.error("No se pueden mezclar cuotas con productos o servicios.");
+      return;
+    }
+    if (itemType === "product" && (item as Product).priceType === "VARIABLE") {
+      setVariableProduct(item as Product);
+      setVariablePrice("");
+      return;
+    }
+    addCartLine(item, itemType);
+  };
+  const addCartLine = (
+    item: Product | Service,
+    itemType: CartItem["itemType"],
+    unitPrice?: number,
+  ) => {
+    if (
+      itemType === "product" &&
+      (item as Product).priceType !== "VARIABLE"
+    ) {
+      const existing = cart.find(
+        (entry) =>
+          entry.itemType === itemType &&
+          entry.item.id === item.id &&
+          entry.unitPrice === unitPrice,
+      );
+      const requestedQuantity = (existing?.quantity ?? 0) + 1;
+      if (requestedQuantity > (item as Product).stock) {
+        toast.error(
+          `Stock insuficiente para ${item.name}. Disponible: ${(item as Product).stock}.`,
+        );
+        return;
+      }
+    }
     setCart((current) => {
       const existing = current.find(
-        (entry) => entry.itemType === itemType && entry.item.id === item.id,
+        (entry) => entry.itemType === itemType && entry.item.id === item.id && entry.unitPrice === unitPrice,
       );
       return existing
         ? current.map((entry) =>
@@ -563,29 +751,57 @@ export default function PosPage() {
               ? { ...entry, quantity: entry.quantity + 1 }
               : entry,
           )
-        : [...current, { itemType, item, quantity: 1 }];
+        : [...current, { itemType, item, quantity: 1, unitPrice }];
     });
     toast.success(`${item.name} agregado al ticket.`);
+  };
+  const confirmVariableProduct = () => {
+    const price = Number(variablePrice);
+    if (!variableProduct || !Number.isFinite(price) || price <= 0) {
+      toast.error("Ingresa un importe mayor que cero.");
+      return;
+    }
+    addCartLine(variableProduct, "product", price);
+    setVariableProduct(null);
+    setVariablePrice("");
   };
   const updateQuantity = (
     itemType: CartItem["itemType"],
     itemId: number,
     quantity: number,
-  ) =>
+  ) => {
+    const entry = cart.find(
+      (item) => item.itemType === itemType && item.item.id === itemId,
+    );
+    if (
+      entry &&
+      quantity > 0 &&
+      entry.itemType === "product" &&
+      (entry.item as Product).priceType !== "VARIABLE" &&
+      quantity > (entry.item as Product).stock
+    ) {
+      toast.error(
+        `Stock insuficiente para ${entry.item.name}. Disponible: ${(entry.item as Product).stock}.`,
+      );
+      return;
+    }
     setCart((current) =>
       quantity <= 0
         ? current.filter(
-            (entry) =>
-              !(entry.itemType === itemType && entry.item.id === itemId),
+            (item) =>
+              !(item.itemType === itemType && item.item.id === itemId),
           )
-        : current.map((entry) =>
-            entry.itemType === itemType && entry.item.id === itemId
-              ? { ...entry, quantity }
-              : entry,
+        : current.map((item) =>
+            item.itemType === itemType && item.item.id === itemId
+              ? { ...item, quantity }
+              : item,
           ),
     );
+  };
   const clearTicket = () => {
     setCart([]);
+    setSubscriptionCharges([]);
+    draftIdRef.current = null;
     setDraftId(null);
     setResumedSaleId(null);
     setActiveConsultationId(null);
@@ -599,8 +815,14 @@ export default function PosPage() {
   async function handleCheckout() {
     if (!activeClientId)
       return toast.error("No hay un cliente genérico disponible para cobrar.");
-    if (!cart.length)
+    if (!hasTicketItems)
       return toast.error("No hay productos ni servicios en el ticket.");
+    if (insufficientStockItem) {
+      const product = insufficientStockItem.item as Product;
+      return toast.error(
+        `Stock insuficiente para ${product.name}. Disponible: ${product.stock}, solicitado: ${insufficientStockItem.quantity}.`,
+      );
+    }
     if (!cashShiftId)
       return toast.error("Abre un turno de caja antes de confirmar la venta.");
     const payments = paymentLines.map((line, index) => ({
@@ -614,17 +836,22 @@ export default function PosPage() {
       0.01
     )
       return toast.error("La suma de los pagos debe coincidir con el total.");
+    if (checkoutInFlightRef.current) return;
+    checkoutInFlightRef.current = true;
     setSubmitting(true);
     setPrintError(null);
     try {
+      if (draftSavePromiseRef.current) {
+        await draftSavePromiseRef.current;
+      }
       const payload = {
         items: cart.map((entry) => ({
           itemType: entry.itemType,
           itemId: entry.item.id,
           quantity: entry.quantity,
-          ...(entry.itemType === "service"
-            ? { nameSnapshot: entry.item.name, priceSnapshot: entry.item.price }
-            : {}),
+          ...(entry.itemType === "service" || (entry.itemType === "product" && (entry.item as Product).priceType === "VARIABLE")
+              ? { nameSnapshot: entry.item.name, priceSnapshot: entry.unitPrice ?? entry.item.price }
+              : {}),
         })),
         paymentMethod: payments[0].method,
         payments,
@@ -632,11 +859,20 @@ export default function PosPage() {
         cashShiftId,
         consultationId: activeConsultationId ?? undefined,
         petId: activePetId ?? undefined,
+        subscriptionInstallmentIds: subscriptionCharges.map((item) => item.id),
       };
+      const checkoutDraftId = subscriptionCharges.length
+        ? null
+        : resumedSaleId || draftIdRef.current || draftId;
       const sale =
-        resumedSaleId || draftId
-          ? await updateSale(resumedSaleId || draftId!, payload)
+        checkoutDraftId
+          ? await updateSale(checkoutDraftId, payload)
           : await createSale({ clientId: Number(activeClientId), ...payload });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["products", "active", tenantId] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-products", tenantId] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-viewer-products", tenantId] }),
+      ]);
       setPrinting(true);
       try {
         await printSaleTicket(sale);
@@ -652,8 +888,11 @@ export default function PosPage() {
       clearTicket();
       toast.success("Venta cobrada correctamente.");
     } catch (error) {
-      toast.error(errorText(error, "No se pudo completar el cobro."));
+      toast.error(errorText(error, "No se pudo completar el cobro."), {
+        id: "pos-checkout-error",
+      });
     } finally {
+      checkoutInFlightRef.current = false;
       setPrinting(false);
       setSubmitting(false);
     }
@@ -667,8 +906,14 @@ export default function PosPage() {
       return toast.error(
         "Abre un turno de caja antes de guardar una cuenta en espera.",
       );
-    if (!cart.length)
+    if (!cart.length || subscriptionCharges.length)
       return toast.error("No hay productos ni servicios para poner en espera.");
+    if (insufficientStockItem) {
+      const product = insufficientStockItem.item as Product;
+      return toast.error(
+        `Stock insuficiente para ${product.name}. Disponible: ${product.stock}, solicitado: ${insufficientStockItem.quantity}.`,
+      );
+    }
     setSubmitting(true);
     try {
       await createWaitingSale({
@@ -679,8 +924,8 @@ export default function PosPage() {
           itemType: entry.itemType,
           itemId: entry.item.id,
           quantity: entry.quantity,
-          ...(entry.itemType === "service"
-            ? { nameSnapshot: entry.item.name, priceSnapshot: entry.item.price }
+          ...(entry.itemType === "service" || (entry.itemType === "product" && (entry.item as Product).priceType === "VARIABLE")
+            ? { nameSnapshot: entry.item.name, priceSnapshot: entry.unitPrice ?? entry.item.price }
             : {}),
         })),
         discount: Number(discountRate) || 0,
@@ -730,6 +975,34 @@ export default function PosPage() {
       toast.error(errorText(error, "No se pudo retomar la cuenta."));
     }
   }
+  async function continueMatchingWaiting() {
+    const sale = matchingWaitingSale;
+    if (!sale) return;
+    const additionalItems = [...cart];
+    setMatchingWaitingOpen(false);
+    setSubmitting(true);
+    try {
+      if (draftSavePromiseRef.current) await draftSavePromiseRef.current;
+      const currentDraftId = draftIdRef.current ?? draftId;
+      if (currentDraftId && String(currentDraftId) !== String(sale.id)) {
+        await deleteSale(String(currentDraftId));
+      }
+      await resumeWaitingSale(String(sale.id));
+      await restoreSale(String(sale.id), additionalItems);
+      setMatchingWaitingSale(null);
+      await refreshWaiting();
+      toast.success(`Cuenta #${sale.id} retomada. Los productos fueron juntados.`);
+    } catch (error) {
+      toast.error(errorText(error, "No se pudo juntar la nueva venta con la cuenta en espera."));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+  function keepNewSale() {
+    setMatchingWaitingOpen(false);
+    setMatchingWaitingSale(null);
+    toast.success("Se mantuvo la cuenta en espera y se inició una venta nueva.");
+  }
   async function replaceAndContinue() {
     const sale = cancelSale;
     if (!sale || !activeClientId || !cashShiftId || !cart.length) return;
@@ -744,8 +1017,8 @@ export default function PosPage() {
           itemType: entry.itemType,
           itemId: entry.item.id,
           quantity: entry.quantity,
-          ...(entry.itemType === "service"
-            ? { nameSnapshot: entry.item.name, priceSnapshot: entry.item.price }
+            ...(entry.itemType === "service" || (entry.itemType === "product" && (entry.item as Product).priceType === "VARIABLE")
+            ? { nameSnapshot: entry.item.name, priceSnapshot: entry.unitPrice ?? entry.item.price }
             : {}),
         })),
         discount: Number(discountRate) || 0,
@@ -881,7 +1154,7 @@ export default function PosPage() {
         <div className="grid min-h-0 flex-1 items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
           <main className="min-w-0 space-y-3 overflow-y-auto pr-1">
             <Card className="border-slate-200/80 shadow-sm">
-              <CardContent className="flex flex-wrap items-center justify-between gap-2 p-2.5">
+              <CardContent className="flex flex-wrap items-start justify-between gap-3 p-2.5">
                 <div className="flex min-w-0 items-center gap-2">
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-700">
                     <UserRound className="size-4" />
@@ -900,14 +1173,21 @@ export default function PosPage() {
                     </p>
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant={selectedClient ? "outline" : "default"}
-                  onClick={() => setClientOpen(true)}
-                >
-                  <UserRound className="mr-2 size-4" />
-                  {selectedClient ? "Cambiar tutor" : "Asignar tutor / mascota"}
-                </Button>
+                <div className="flex w-full max-w-xs flex-col items-start gap-2 sm:w-56">
+                  <Button
+                    size="sm"
+                    className="w-full justify-start"
+                    variant={selectedClient ? "outline" : "default"}
+                    onClick={() => setClientOpen(true)}
+                  >
+                    <UserRound className="mr-2 size-4" />
+                    {selectedClient ? "Cambiar tutor" : "Asignar tutor / mascota"}
+                  </Button>
+                  <Button size="sm" className="w-full justify-start" variant="outline" onClick={() => void openInstallmentPicker()} disabled={!selectedClientId || installmentLoading || Boolean(cart.length)}>
+                    {installmentLoading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <CreditCard className="mr-2 size-4" />}
+                    Cargar cuotas
+                  </Button>
+                </div>
               </CardContent>
             </Card>
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
@@ -983,7 +1263,9 @@ export default function PosPage() {
                   {paginatedCatalogItems.map(({ itemType, item }) => {
                     const stock =
                       itemType === "product"
-                        ? (item as Product).stock
+                        ? (item as Product).priceType === "VARIABLE"
+                          ? undefined
+                          : (item as Product).stock
                         : undefined;
                     return (
                       <Card
@@ -1012,7 +1294,9 @@ export default function PosPage() {
                             >
                               {itemType === "service"
                                 ? "Servicio"
-                                : stock === undefined
+                                : (item as Product).priceType === "VARIABLE"
+                                  ? "Precio variable"
+                                  : stock === undefined
                                   ? "Disponible"
                                   : stock === 0
                                     ? "Sin stock"
@@ -1031,12 +1315,12 @@ export default function PosPage() {
                           </p>
                           <div className="mt-auto flex items-end justify-between gap-2 pt-2">
                             <span className="text-[13px] font-bold text-slate-900">
-                              {money(Number(item.price))}
+                              {(itemType === "product" && (item as Product).priceType === "VARIABLE") ? "Importe variable" : money(Number(item.price))}
                             </span>
                             <Button
                               size="icon-sm"
                               aria-label={`Agregar ${item.name}`}
-                              disabled={stock === 0}
+                              disabled={stock === 0 && (item as Product).priceType !== "VARIABLE"}
                               onClick={() => addToCart(item, itemType)}
                               className="rounded-lg bg-teal-700 text-white shadow-sm hover:bg-teal-800"
                             >
@@ -1104,15 +1388,15 @@ export default function PosPage() {
                     </CardTitle>
                     <CardDescription className="mt-1">
                       {draftId ? `Borrador #${draftId}` : "Nueva venta"} ·{" "}
-                      {cart.length} líneas
+                      {cart.length + subscriptionCharges.length} líneas
                     </CardDescription>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Vaciar ticket"
-                    disabled={!cart.length || submitting}
-                    onClick={clearTicket}
+                    disabled={!hasTicketItems || submitting}
+                    onClick={() => setClearTicketOpen(true)}
                   >
                     <Trash2 className="size-4 text-slate-500" />
                   </Button>
@@ -1120,7 +1404,7 @@ export default function PosPage() {
               </CardHeader>
               <ScrollArea className="min-h-0 flex-1">
                 <CardContent className="space-y-4 px-5 py-4">
-                  {cart.length === 0 ? (
+                  {!hasTicketItems ? (
                     <div className="flex min-h-52 flex-col items-center justify-center text-center">
                       <div className="flex size-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-300">
                         <ShoppingCart className="size-7" />
@@ -1138,6 +1422,22 @@ export default function PosPage() {
                     </div>
                   ) : (
                     <>
+                      {subscriptionCharges.length > 0 && (
+                        <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">
+                            Cuotas de suscripción
+                          </p>
+                          {subscriptionCharges.map((charge) => (
+                            <div key={`installment-${charge.id}`} className="flex items-center justify-between gap-3 text-sm">
+                              <div>
+                                <p className="font-semibold text-slate-800">Cuota #{charge.id}</p>
+                                <p className="text-[11px] text-slate-500">Vence {dateTime(charge.dueDate)}</p>
+                              </div>
+                              <span className="font-bold text-slate-900">{money(charge.totalAmount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <div className="space-y-2">
                         {cart.map((entry) => (
                           <div
@@ -1169,7 +1469,7 @@ export default function PosPage() {
                                   </button>
                                 </div>
                                 <p className="mt-1 text-[11px] text-slate-500">
-                                  {money(Number(entry.item.price))} c/u ·{" "}
+                                  {money(Number(entry.unitPrice ?? entry.item.price))} c/u ·{" "}
                                   {entry.itemType === "service"
                                     ? "Servicio"
                                     : "Producto"}
@@ -1210,7 +1510,7 @@ export default function PosPage() {
                                   </div>
                                   <span className="text-sm font-bold text-slate-900">
                                     {money(
-                                      Number(entry.item.price) * entry.quantity,
+                                      Number(entry.unitPrice ?? entry.item.price) * entry.quantity,
                                     )}
                                   </span>
                                 </div>
@@ -1410,9 +1710,16 @@ export default function PosPage() {
                 </div>
               </div>
               <div className="space-y-2 border-t border-slate-100 bg-white p-5">
+                {insufficientStockItem && (
+                  <p className="text-sm text-destructive">
+                    Stock insuficiente para {insufficientStockItem.item.name}: disponible {(
+                      insufficientStockItem.item as Product
+                    ).stock}, solicitado {insufficientStockItem.quantity}.
+                  </p>
+                )}
                 <Button
                   className="h-12 w-full bg-teal-700 text-sm font-bold text-white shadow-sm hover:bg-teal-800"
-                  disabled={!cart.length || submitting || printing}
+                  disabled={!hasTicketItems || hasInsufficientStock || submitting || printing}
                   onClick={() => void handleCheckout()}
                 >
                   {submitting ? (
@@ -1426,14 +1733,14 @@ export default function PosPage() {
                     ? "Imprimiendo ticket..."
                     : "Cobrar e imprimir ticket"}
                   <kbd className="ml-auto hidden rounded border border-white/30 px-1.5 py-0.5 text-[10px] font-medium sm:inline">
-                    F12
+                    F8
                   </kbd>
                 </Button>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     className="flex-1 border-amber-200 text-amber-800 hover:bg-amber-50"
-                    disabled={!cart.length || submitting}
+                    disabled={!hasTicketItems || submitting}
                     onClick={() => void handleHold()}
                   >
                     <Clock3 className="mr-2 size-4" />
@@ -1453,10 +1760,18 @@ export default function PosPage() {
                   </Button>
                 </div>
                 {printError && (
-                  <p className="flex items-start gap-2 text-xs text-amber-700">
+                  <div className="flex items-start gap-2 text-xs text-amber-700">
                     <CircleAlert className="mt-0.5 size-3.5 shrink-0" />
-                    {printError}
-                  </p>
+                    <span className="flex-1">{printError}</span>
+                    <button
+                      type="button"
+                      className="shrink-0 text-amber-700/70 hover:text-amber-900"
+                      aria-label="Cerrar aviso de impresión"
+                      onClick={() => setPrintError(null)}
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
                 )}
                 <p className="text-center text-[10px] text-slate-400">
                   El cobro registra pagos y stock de forma atómica.
@@ -1466,7 +1781,7 @@ export default function PosPage() {
           </aside>
         </div>
         <footer className="mt-4 flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] text-slate-400">
-          <span>F2 buscar · F6 cuentas en espera · F12 cobrar</span>
+          <span>F2 buscar · F6 cuentas en espera · F8 cobrar</span>
           <span>
             {draftSaveInFlight
               ? "Guardando borrador..."
@@ -1476,6 +1791,42 @@ export default function PosPage() {
           </span>
         </footer>
       </div>
+      <Dialog open={Boolean(variableProduct)} onOpenChange={(open) => !open && setVariableProduct(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Definir importe</DialogTitle>
+            <DialogDescription>
+              {variableProduct?.name} es un producto de precio variable. Este importe solo se aplicará a esta línea de venta.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="variable-product-price">Importe de venta</Label>
+            <Input
+              id="variable-product-price"
+              type="number"
+              min="0.01"
+              step="0.01"
+              autoFocus
+              value={variablePrice}
+              onChange={(event) => setVariablePrice(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") confirmVariableProduct();
+              }}
+            />
+            {variableProduct?.ivaIncluded !== false && Number(variablePrice) > 0 && (
+              <div className="rounded-md bg-muted/50 p-3 text-sm">
+                <p className="font-medium">IVA incluido</p>
+                <p className="text-muted-foreground">Sin IVA: {money(calculateFiscalAmounts(Number(variablePrice), 1, true).netCents as number / 100)}</p>
+                <p className="text-muted-foreground">IVA 22%: {money(calculateFiscalAmounts(Number(variablePrice), 1, true).taxCents as number / 100)}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setVariableProduct(null)}>Cancelar</Button>
+            <Button type="button" onClick={confirmVariableProduct}>Agregar al ticket</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={clientOpen} onOpenChange={setClientOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -1527,6 +1878,53 @@ export default function PosPage() {
               Cerrar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog
+        open={matchingWaitingOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMatchingWaitingOpen(false);
+            setMatchingWaitingSale(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="w-[min(90vw,45rem)] !max-w-[45rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Este cliente tiene una cuenta en espera</AlertDialogTitle>
+            <AlertDialogDescription>
+              {matchingWaitingSale?.client?.name ?? "El cliente seleccionado"} ya tiene la cuenta #{matchingWaitingSale?.id} en espera.
+              Puedes retomarla para sumar los productos de este ticket o mantenerla separada y crear una venta nueva.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+            <AlertDialogCancel onClick={keepNewSale}>
+              Nueva venta, mantener en espera
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => void continueMatchingWaiting()}>
+              Continuar y juntar productos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <Dialog open={installmentOpen} onOpenChange={setInstallmentOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><CreditCard className="size-5 text-teal-700" />Cargar cuotas al ticket</DialogTitle>
+            <DialogDescription>Selecciona cuotas pendientes del cliente. El backend volverá a validar disponibilidad e importes antes de cobrar.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
+            {availableInstallments.length ? availableInstallments.map((installment) => {
+              const checked = selectedInstallmentIds.includes(installment.id);
+              const isFuture = new Date(installment.dueDate) > new Date();
+              return <label key={installment.id} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition ${checked ? "border-teal-300 bg-teal-50/60" : "border-slate-200 hover:bg-slate-50"}`}>
+                <Checkbox checked={checked} onCheckedChange={() => toggleInstallment(installment)} />
+                <div className="min-w-0 flex-1"><p className="font-medium text-slate-800">Cuota #{installment.id} {isFuture && <Badge className="ml-2" variant="info">Pago adelantado</Badge>}</p><p className="text-xs text-slate-500">Vence {dateTime(installment.dueDate)} · Período {dateTime(installment.periodStart)} — {dateTime(installment.periodEnd)}</p></div>
+                <span className="font-semibold text-slate-800">{money(Number(installment.totalAmount))}</span>
+              </label>;
+            }) : <p className="rounded-lg border border-dashed p-8 text-center text-sm text-slate-500">No hay cuotas pendientes disponibles.</p>}
+          </div>
+          <DialogFooter><div className="mr-auto text-sm text-muted-foreground">{selectedInstallmentIds.length} cuota(s) seleccionada(s)</div><Button variant="outline" onClick={() => setInstallmentOpen(false)} disabled={installmentPreparing}>Cancelar</Button><Button onClick={() => void loadInstallmentsInTicket()} disabled={!selectedInstallmentIds.length || installmentPreparing}>{installmentPreparing && <Loader2 className="mr-2 size-4 animate-spin" />}Cargar al ticket</Button></DialogFooter>
         </DialogContent>
       </Dialog>
       <Dialog open={waitingOpen} onOpenChange={setWaitingOpen}>
@@ -1621,6 +2019,32 @@ export default function PosPage() {
         </DialogContent>
       </Dialog>
       <AlertDialog
+        open={clearTicketOpen}
+        onOpenChange={setClearTicketOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Vaciar el ticket?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se quitarán todos los productos, servicios o cuotas seleccionados
+              y se perderá el contenido actual del ticket.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Conservar ticket</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                clearTicket();
+                setClearTicketOpen(false);
+              }}
+            >
+              Vaciar ticket
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
         open={Boolean(cancelSale) && !replaceCartOpen}
         onOpenChange={(open) => {
           if (!open) setCancelSale(null);
@@ -1651,7 +2075,7 @@ export default function PosPage() {
         </AlertDialogContent>
       </AlertDialog>
       <AlertDialog open={replaceCartOpen} onOpenChange={setReplaceCartOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[min(90vw,45rem)] !max-w-[45rem]">
           <AlertDialogHeader>
             <AlertDialogTitle>Ya tienes una venta en curso</AlertDialogTitle>
             <AlertDialogDescription>
