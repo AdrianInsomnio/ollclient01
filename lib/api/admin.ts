@@ -102,6 +102,32 @@ export async function getAdminClinics(): Promise<ClinicListResponse> {
   return get<ClinicListResponse>("/admin/clinics");
 }
 
+export interface ClinicSettings {
+  id: number;
+  name: string;
+  rut: string | null;
+  website: string | null;
+  imageUrl: string | null;
+  imagePublicId: string | null;
+  imageVersion: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  isActive: boolean;
+  timezone: string | null;
+  organizationId: number;
+}
+
+export async function getClinicSettings(): Promise<ClinicSettings> {
+  const response = await get<{ clinic: ClinicSettings }>("/admin/clinic");
+  return response.clinic;
+}
+
+export async function updateClinicSettings(data: Partial<Omit<ClinicSettings, "id" | "isActive" | "organizationId">>): Promise<ClinicSettings> {
+  const response = await put<{ clinic: ClinicSettings }>("/admin/clinic", data);
+  return response.clinic;
+}
+
 export async function getAdminUsers(): Promise<UserListResponse> {
   return get<UserListResponse>("/admin/users");
 }

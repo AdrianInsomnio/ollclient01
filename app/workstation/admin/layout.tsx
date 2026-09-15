@@ -35,8 +35,8 @@ export default function AdminLayout({
         <SidebarInset>
           <div className='flex h-screen flex-col'>
             <Header clinicName={clinicName} notificationCount={0} />
-            <main className='flex-1 bg-gray-50 overflow-y-auto'>
-              <div className='max-w-7xl mx-auto w-full p-6'>{children}</div>
+            <main className='flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-50'>
+              <div className='mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col p-6'>{children}</div>
             </main>
           </div>
         </SidebarInset>
