@@ -460,7 +460,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                 )}
               </div>
 
-              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+              <div className="min-h-0 flex-1 space-y-4 overflow-hidden pr-1">
               {isSearching && (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
