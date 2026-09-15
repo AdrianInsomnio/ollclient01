@@ -55,6 +55,9 @@ interface SearchResult {
   ownerPhone?: string
 }
 
+const patientKey = (patient: Pick<SearchResult, "type" | "id">) =>
+  `${patient.type}-${String(patient.id)}`
+
 interface AgregarAColaModalProps {
   onSuccess?: () => void
 }
@@ -233,7 +236,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
       // Procesar mascotas encontradas directamente
       for (const pet of foundPets) {
         // Evitar duplicados
-        const exists = results.some(r => r.id === pet.id)
+        const exists = results.some(r => patientKey(r) === patientKey({ type: "pet", id: pet.id }))
         if (!exists && pet.client) {
           results.push({
             type: "pet",
@@ -249,9 +252,9 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
         }
       }
 
-      // Deduplicar por ID de mascota
+      // Deduplicar por tipo e ID para evitar filas repetidas.
       const uniqueResults = Array.from(
-        new Map(results.map(r => [r.id, r])).values()
+        new Map(results.map(r => [patientKey(r), r])).values()
       ).slice(0, 15)
 
       setSearchResults(uniqueResults)
@@ -452,14 +455,15 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                     Resultados ({searchResults.length})
                   </h4>
                   <ScrollArea className="max-h-[40vh]">
+                    <div className="space-y-2 pr-2">
                     {searchResults.map((patient) => (
                       <button
-                        key={patient.type + "-" + patient.id}
+                        key={patientKey(patient)}
                         type="button"
                         onClick={() => handleSelectPatient(patient)}
                         className={
                           "w-full p-3 rounded-xl border transition-all text-left " +
-                          (selectedPatient?.id === patient.id
+                          (selectedPatient && patientKey(selectedPatient) === patientKey(patient)
                             ? "border-emerald-500 bg-emerald-50 shadow-sm"
                             : "border-border hover:bg-accent/50")
                         }
@@ -475,12 +479,13 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                               {patient.breed && <span>- {patient.breed}</span>}
                             </p>
                           </div>
-                          {selectedPatient?.id === patient.id && (
+                          {selectedPatient && patientKey(selectedPatient) === patientKey(patient) && (
                             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                           )}
                         </div>
                       </button>
                     ))}
+                    </div>
                   </ScrollArea>
                 </div>
               )}
@@ -502,14 +507,15 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                     </div>
                   ) : recentPatients.length > 0 ? (
                     <ScrollArea className="max-h-[40vh]">
+                      <div className="space-y-2 pr-2">
                       {recentPatients.map((patient) => (
                         <button
-                          key={patient.type + "-" + patient.id}
+                          key={patientKey(patient)}
                           type="button"
                           onClick={() => handleSelectPatient(patient)}
                           className={
                             "w-full p-3 rounded-xl border transition-all text-left " +
-                            (selectedPatient?.id === patient.id
+                            (selectedPatient && patientKey(selectedPatient) === patientKey(patient)
                               ? "border-emerald-500 bg-emerald-50 shadow-sm"
                               : "border-border hover:bg-accent/50")
                           }
@@ -525,12 +531,13 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                                 {patient.breed && <span>- {patient.breed}</span>}
                               </p>
                             </div>
-                            {selectedPatient?.id === patient.id && (
+                            {selectedPatient && patientKey(selectedPatient) === patientKey(patient) && (
                               <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                             )}
                           </div>
                         </button>
                       ))}
+                      </div>
                     </ScrollArea>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
