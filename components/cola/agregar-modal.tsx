@@ -473,7 +473,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Resultados ({searchResults.length})
                   </h4>
-                  <ScrollArea className="max-h-[40vh]">
+                  <ScrollArea className="h-[40vh] min-h-0 max-h-[40vh] overflow-hidden">
                     <div className="space-y-2 pr-2">
                     {searchResults.map((patient) => (
                       <button
@@ -525,7 +525,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
                       ))}
                     </div>
                   ) : recentPatients.length > 0 ? (
-                    <ScrollArea className="max-h-[40vh]">
+                    <ScrollArea className="h-[40vh] min-h-0 max-h-[40vh] overflow-hidden">
                       <div className="space-y-2 pr-2">
                       {recentPatients.map((patient) => (
                         <button
