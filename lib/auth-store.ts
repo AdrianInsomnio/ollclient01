@@ -81,6 +81,12 @@ const baseStore: StateCreator<AuthState> = (set, get) => ({
 
     try {
       const authResponse = await getProfile()
+      // El login puede completarse mientras esta inicialización estaba en vuelo.
+      // No sobrescribir la sesión nueva con el token que existía al comenzar.
+      const current = get()
+      if (!AUTH_VIA_COOKIE && current.token !== state.token) {
+        return
+      }
       const tenantId = authResponse.user.clinics?.[0]?.id ?? authResponse.user.organizationId
       set({
         token: state.token,
