@@ -188,6 +188,7 @@ export default function PosPage() {
   const draftSaveTimerRef = useRef<number | null>(null);
   const draftSaveInFlightRef = useRef(false);
   const draftSavePromiseRef = useRef<Promise<void> | null>(null);
+  const draftAutosavePausedRef = useRef(false);
   const checkoutInFlightRef = useRef(false);
   const [pendingDraft, setPendingDraft] = useState<Sale | null>(null);
   const [waitingSales, setWaitingSales] = useState<Sale[]>([]);
@@ -539,6 +540,7 @@ export default function PosPage() {
       !activeClientIdForDraft ||
       cart.length === 0 ||
       submitting ||
+      draftAutosavePausedRef.current ||
       draftSaveInFlightRef.current ||
       cart.some((entry) => entry.itemType === "product" && (entry.item as Product).priceType !== "VARIABLE" && entry.quantity > (entry.item as Product).stock)
     )
@@ -1066,8 +1068,9 @@ export default function PosPage() {
     const sale = matchingWaitingSale;
     if (!sale) return;
     const additionalItems = [...cart];
-    setMatchingWaitingOpen(false);
+    draftAutosavePausedRef.current = true;
     setSubmitting(true);
+    setMatchingWaitingOpen(false);
     try {
       if (draftSavePromiseRef.current) await draftSavePromiseRef.current;
       const currentDraftId = draftIdRef.current ?? draftId;
@@ -1082,6 +1085,7 @@ export default function PosPage() {
     } catch (error) {
       toast.error(errorText(error, "No se pudo juntar la nueva venta con la cuenta en espera."));
     } finally {
+      draftAutosavePausedRef.current = false;
       setSubmitting(false);
     }
   }
@@ -1093,6 +1097,7 @@ export default function PosPage() {
   async function replaceAndContinue() {
     const sale = cancelSale;
     if (!sale || !activeClientId || !cashShiftId || !cart.length) return;
+    draftAutosavePausedRef.current = true;
     setReplaceCartOpen(false);
     if (draftSaveTimerRef.current !== null) {
       window.clearTimeout(draftSaveTimerRef.current);
@@ -1131,6 +1136,7 @@ export default function PosPage() {
         ),
       );
     } finally {
+      draftAutosavePausedRef.current = false;
       setSubmitting(false);
       setCancelSale(null);
     }
