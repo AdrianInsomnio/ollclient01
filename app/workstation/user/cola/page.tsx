@@ -58,7 +58,12 @@ interface Consultation {
   status: "OPEN" | "CLOSED";
   priority: "URGENT" | "SCHEDULED" | "NORMAL";
   consultorioId?: number | null;
-  consultorio?: { id: number; name: string; status: "ACTIVE" | "INACTIVE" | "MAINTENANCE"; size?: string | null } | null;
+  consultorio?: {
+    id: number;
+    name: string;
+    status: "ACTIVE" | "INACTIVE" | "MAINTENANCE";
+    size?: string | null;
+  } | null;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -185,7 +190,9 @@ function isToday(value?: string | null): boolean {
 function mapConsultationToQueuePatient(
   consultation: Consultation,
 ): QueuePatient {
-  const status: QueueStatus = consultation.consultorioId ? "IN_PROGRESS" : "WAITING";
+  const status: QueueStatus = consultation.consultorioId
+    ? "IN_PROGRESS"
+    : "WAITING";
   return {
     id: Number(consultation.id),
     ownerName: consultation.client?.name || "Cliente #" + consultation.clientId,
@@ -411,12 +418,19 @@ function EmptyState({
 
 export default function ColaPage() {
   const [filter, setFilter] = useState<QueueFilter>("all");
-  const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null);
+  const [selectedConsultation, setSelectedConsultation] =
+    useState<Consultation | null>(null);
   const queryClient = useQueryClient();
   const invalidateQueries = async () => {
     await Promise.all([
-      queryClient.refetchQueries({ queryKey: ["consultations-open"], type: "active" }),
-      queryClient.refetchQueries({ queryKey: ["appointments-today"], type: "active" }),
+      queryClient.refetchQueries({
+        queryKey: ["consultations-open"],
+        type: "active",
+      }),
+      queryClient.refetchQueries({
+        queryKey: ["appointments-today"],
+        type: "active",
+      }),
     ]);
   };
   const { data: consultations, isLoading: loadingConsultations } = useQuery({
@@ -427,10 +441,11 @@ export default function ColaPage() {
     queryKey: ["appointments-today"],
     queryFn: () => getAppointments(),
   });
-  const { data: allConsultations, isLoading: loadingAllConsultations } = useQuery({
-    queryKey: ["consultations"],
-    queryFn: () => getConsultations(),
-  });
+  const { data: allConsultations, isLoading: loadingAllConsultations } =
+    useQuery({
+      queryKey: ["consultations"],
+      queryFn: () => getConsultations(),
+    });
   const { data: consultorios, isLoading: loadingConsultorios } = useQuery({
     queryKey: ["consultorios"],
     queryFn: () => getConsultorios(),
@@ -453,7 +468,10 @@ export default function ColaPage() {
     mutationFn: ({ id, priority }: { id: number; priority: Priority }) =>
       updateConsultationPriority(id, priority),
     onSuccess: async () => {
-      await queryClient.refetchQueries({ queryKey: ["consultations-open"], type: "active" });
+      await queryClient.refetchQueries({
+        queryKey: ["consultations-open"],
+        type: "active",
+      });
       toast.success("Prioridad actualizada");
     },
     onError: () => toast.error("No se pudo actualizar la prioridad"),
@@ -487,13 +505,16 @@ export default function ColaPage() {
         appointment.status === "cancelled" && isToday(appointment.date),
     ).length || 0;
   const activeRooms =
-    consultorios?.filter((consultorio) => consultorio.status === "ACTIVE") || [];
+    consultorios?.filter((consultorio) => consultorio.status === "ACTIVE") ||
+    [];
   const occupiedRoomIds = new Set(
     queuePatients
       .filter((patient) => patient.status === "IN_PROGRESS")
-      .map((patient) =>
-        consultations?.find((consultation) => Number(consultation.id) === patient.id)
-          ?.consultorioId,
+      .map(
+        (patient) =>
+          consultations?.find(
+            (consultation) => Number(consultation.id) === patient.id,
+          )?.consultorioId,
       )
       .filter((id): id is number => typeof id === "number"),
   );
@@ -698,7 +719,9 @@ export default function ColaPage() {
                       position={index + 1}
                       onPriorityChange={handlePriorityChange}
                       onSelect={() => {
-                        const consultation = consultations?.find((item) => Number(item.id) === patient.id);
+                        const consultation = consultations?.find(
+                          (item) => Number(item.id) === patient.id,
+                        );
                         if (consultation) setSelectedConsultation(consultation);
                       }}
                       isPriorityUpdating={priorityMutation.isPending}
@@ -833,6 +856,7 @@ export default function ColaPage() {
         </div>
       </div>
       <QueuePatientDialog
+        key={selectedConsultation?.id ?? "empty"}
         consultation={selectedConsultation}
         open={Boolean(selectedConsultation)}
         onOpenChange={(open) => {
