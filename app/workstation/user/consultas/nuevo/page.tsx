@@ -1,38 +1,38 @@
-﻿'use client'
+﻿"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { CalendarDays, FileText, PawPrint, Users } from 'lucide-react'
-import { openConsultation } from '@/lib/api/consultations'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { CalendarDays, FileText, PawPrint, Users } from "lucide-react";
+import { openConsultation } from "@/lib/api/consultations";
 
 export default function NewConsultationPage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [clientId, setClientId] = useState('')
-  const [petId, setPetId] = useState('')
-  const [notes, setNotes] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [clientId, setClientId] = useState("");
+  const [petId, setPetId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
     try {
       const consultation = await openConsultation({
         clientId: Number(clientId),
         petId: Number(petId),
         notes,
-      })
-      router.push(`/workstation/user/consultas/${consultation.id}`)
-    } catch (err: any) {
-      setError(err?.response?.data?.message ?? err?.message ?? 'Error al crear consulta')
+      });
+      router.push(`/workstation/user/consultas/${consultation.id}`);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al crear consulta");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -64,7 +64,9 @@ export default function NewConsultationPage() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-2">Notas iniciales</label>
+          <label className="block text-sm font-medium mb-2">
+            Notas iniciales
+          </label>
           <Textarea
             placeholder="Síntomas, motivo de consulta..."
             value={notes}
@@ -78,9 +80,9 @@ export default function NewConsultationPage() {
           </div>
         )}
         <Button type="submit" disabled={loading} className="w-full">
-          {loading ? 'Creando...' : 'Crear Consulta'}
+          {loading ? "Creando..." : "Crear Consulta"}
         </Button>
       </form>
     </div>
-  )
+  );
 }

@@ -4,7 +4,11 @@ import { useRouter, useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getClients } from "@/lib/api/clients";
 import { getPets } from "@/lib/api/pets";
-import { getAppointment, updateAppointment } from "@/lib/api/appointments";
+import {
+  getAppointment,
+  updateAppointment,
+  type UpdateAppointmentPayload,
+} from "@/lib/api/appointments";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,7 +56,7 @@ export default function EditarCitaPage() {
 
   const { data: pets } = useQuery({
     queryKey: ["pets", clientId],
-    queryFn: () => clientId ? getPets() : Promise.resolve([]),
+    queryFn: () => (clientId ? getPets() : Promise.resolve([])),
     enabled: !!clientId,
   });
 
@@ -75,7 +79,7 @@ export default function EditarCitaPage() {
     setLoading(true);
     setError("");
     try {
-      const updateData: any = {
+      const updateData: UpdateAppointmentPayload = {
         clientId: Number(clientId),
         petId: Number(petId),
         date: toIsoFromLocalDateTime(date, time),
@@ -85,22 +89,31 @@ export default function EditarCitaPage() {
       };
       await updateAppointment(appointmentId, updateData);
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["appointment", appointmentId] });
+      queryClient.invalidateQueries({
+        queryKey: ["appointment", appointmentId],
+      });
       router.push(`/workstation/user/citas/${appointmentId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al actualizar la cita");
+      setError(
+        err instanceof Error ? err.message : "Error al actualizar la cita",
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  if (loadingAppointment) return <p className="text-center text-gray-500 py-8">Cargando cita...</p>;
-  if (!appointment) return <p className="text-center text-gray-500 py-8">Cita no encontrada</p>;
+  if (loadingAppointment)
+    return <p className="text-center text-gray-500 py-8">Cargando cita...</p>;
+  if (!appointment)
+    return <p className="text-center text-gray-500 py-8">Cita no encontrada</p>;
 
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <a href={`/workstation/user/citas/${appointmentId}`} className="text-sm text-gray-600 hover:underline">
+        <a
+          href={`/workstation/user/citas/${appointmentId}`}
+          className="text-sm text-gray-600 hover:underline"
+        >
           ← Ver cita
         </a>
       </div>
@@ -108,12 +121,17 @@ export default function EditarCitaPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" />Cliente</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Cliente
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="clientSelect" className="text-sm font-medium">Seleccionar cliente *</label>
+                <label htmlFor="clientSelect" className="text-sm font-medium">
+                  Seleccionar cliente *
+                </label>
                 <select
                   id="clientSelect"
                   value={clientId}
@@ -136,12 +154,17 @@ export default function EditarCitaPage() {
         {clientId && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><PawPrint className="h-5 w-5" />Mascota</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <PawPrint className="h-5 w-5" />
+                Mascota
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label htmlFor="petSelect" className="text-sm font-medium">Seleccionar mascota *</label>
+                  <label htmlFor="petSelect" className="text-sm font-medium">
+                    Seleccionar mascota *
+                  </label>
                   <select
                     id="petSelect"
                     value={petId}
@@ -153,14 +176,18 @@ export default function EditarCitaPage() {
                     <option value="">Seleccione una mascota...</option>
                     {pets?.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name} {p.species ? `(${p.species})` : ""} {p.breed ? `- ${p.breed}` : ""}
+                        {p.name} {p.species ? `(${p.species})` : ""}{" "}
+                        {p.breed ? `- ${p.breed}` : ""}
                       </option>
                     ))}
                   </select>
                   {!pets || pets.length === 0 ? (
                     <p className="text-sm text-gray-500 mt-2">
                       Este cliente no tiene mascotas registradas.{" "}
-                      <a href={`/workstation/user/mascotas/nuevo?clientId=${clientId}`} className="text-blue-600 hover:underline">
+                      <a
+                        href={`/workstation/user/mascotas/nuevo?clientId=${clientId}`}
+                        className="text-blue-600 hover:underline"
+                      >
                         Crear una nueva mascota
                       </a>
                     </p>
@@ -173,11 +200,16 @@ export default function EditarCitaPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" />Fecha y Hora</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Fecha y Hora
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label htmlFor="dateInput" className="text-sm font-medium">Fecha *</label>
+              <label htmlFor="dateInput" className="text-sm font-medium">
+                Fecha *
+              </label>
               <input
                 id="dateInput"
                 type="date"
@@ -189,7 +221,9 @@ export default function EditarCitaPage() {
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="timeInput" className="text-sm font-medium">Hora *</label>
+              <label htmlFor="timeInput" className="text-sm font-medium">
+                Hora *
+              </label>
               <input
                 id="timeInput"
                 type="time"
@@ -204,11 +238,16 @@ export default function EditarCitaPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" />Detalles</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Detalles
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="durationInput" className="text-sm font-medium">Duración (min) *</label>
+              <label htmlFor="durationInput" className="text-sm font-medium">
+                Duración (min) *
+              </label>
               <input
                 id="durationInput"
                 type="number"
@@ -222,7 +261,9 @@ export default function EditarCitaPage() {
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="serviceInput" className="text-sm font-medium">Tipo de servicio</label>
+              <label htmlFor="serviceInput" className="text-sm font-medium">
+                Tipo de servicio
+              </label>
               <input
                 id="serviceInput"
                 type="text"
@@ -233,7 +274,9 @@ export default function EditarCitaPage() {
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="notesInput" className="text-sm font-medium">Notas</label>
+              <label htmlFor="notesInput" className="text-sm font-medium">
+                Notas
+              </label>
               <textarea
                 id="notesInput"
                 rows={3}
@@ -247,11 +290,7 @@ export default function EditarCitaPage() {
         </Card>
 
         <div className="flex justify-end pt-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.back()}
-          >
+          <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancelar
           </Button>
           <Button type="submit" disabled={loading}>
