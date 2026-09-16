@@ -67,7 +67,7 @@ async function request<T>(
   // En modo header seguimos mandando Bearer como antes.
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    ...(authStore.token && { Authorization: `Bearer ${authStore.token}` }),
+    ...(!AUTH_VIA_COOKIE && authStore.token && { Authorization: `Bearer ${authStore.token}` }),
     ...(authStore.tenantId && { "x-tenant-id": authStore.tenantId }),
     ...(idempotencyKey && { "Idempotency-Key": idempotencyKey }),
     ...fetchConfig.headers,
