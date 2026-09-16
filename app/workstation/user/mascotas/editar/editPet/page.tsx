@@ -34,7 +34,6 @@ export default function EditPetPage() {
 
   return (
     <div className='space-y-6'>
-      <h1 className='text-2xl font-bold text-gray-900'>Editar Mascota</h1>
       <PetForm 
         pet={pet} 
         onSuccess={() => router.push('/workstation/user/mascotas/' + petId)}

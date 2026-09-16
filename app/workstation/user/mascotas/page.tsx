@@ -211,20 +211,7 @@ export default function MascotasPage() {
 
   return (
     <div className='space-y-6'>
-      {/* ===== Header de página ===== */}
-      <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-        <div className='space-y-0.5'>
-          <h1 className='text-2xl font-semibold tracking-tight text-foreground'>
-            Mascotas
-          </h1>
-          <p className='text-sm text-muted-foreground'>
-            {isLoading
-              ? 'Cargando mascotas…'
-              : totalCount === 0
-                ? 'Aún no hay mascotas registradas'
-                : `${totalCount} ${totalCount === 1 ? 'mascota registrada' : 'mascotas registradas'}`}
-          </p>
-        </div>
+      <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-end'>
         <div className='flex flex-wrap items-center gap-2'>
           <Link href='/workstation/user/mascotas/buscar'>
             <Button variant='outline' size='sm'>

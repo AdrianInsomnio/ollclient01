@@ -54,8 +54,7 @@ export default function ClientesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div><h1 className="text-2xl font-bold tracking-tight text-gray-900">Clientes</h1><p className="text-sm text-muted-foreground">{isLoading ? 'Cargando clientes…' : `${filteredClients.length} cliente${filteredClients.length === 1 ? '' : 's'} disponible${filteredClients.length === 1 ? '' : 's'}`}</p></div>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-end">
         <div className="flex flex-wrap gap-2"><Link href="/workstation/user/clientes/buscar"><Button variant="outline" className="gap-2"><Search className="h-4 w-4" />Búsqueda avanzada</Button></Link><Link href="/workstation/user/clientes/nuevo"><Button className="gap-2"><Plus className="h-4 w-4" />Nuevo Cliente</Button></Link></div>
       </div>
 

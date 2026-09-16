@@ -12,6 +12,7 @@ import {
   CircleAlert,
   Clock3,
   CreditCard,
+  Info,
   Loader2,
   Minus,
   Package,
@@ -68,7 +69,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/lib/auth-store";
 import {
@@ -106,6 +106,9 @@ type CartItem = {
   quantity: number;
   unitPrice?: number;
 };
+type CatalogInfoItem =
+  | { itemType: "product"; item: Product }
+  | { itemType: "service"; item: Service };
 type SubscriptionCharge = {
   id: number;
   periodStart: string;
@@ -115,6 +118,7 @@ type SubscriptionCharge = {
 };
 type PaymentLine = { method: string; amount: string };
 type CatalogFilter = "all" | "products" | "services";
+const CATALOG_PAGE_SIZE = 15;
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-UY", {
@@ -157,11 +161,13 @@ export default function PosPage() {
   const [clientSearch, setClientSearch] = useState("");
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>("all");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [catalogPage, setCatalogPage] = useState(1);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [variableProduct, setVariableProduct] = useState<Product | null>(null);
+  const [catalogInfoItem, setCatalogInfoItem] = useState<CatalogInfoItem | null>(null);
   const [variablePrice, setVariablePrice] = useState("");
   const [subscriptionCharges, setSubscriptionCharges] = useState<SubscriptionCharge[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -171,12 +177,15 @@ export default function PosPage() {
   const [cashShiftId, setCashShiftId] = useState<number | null>(null);
   const [cashRegisterName, setCashRegisterName] = useState("Caja no asignada");
   const [discountRate, setDiscountRate] = useState("0");
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [paymentLines, setPaymentLines] = useState<PaymentLine[]>([
     { method: "cash", amount: "" },
   ]);
   const [resumedSaleId, setResumedSaleId] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const draftIdRef = useRef<string | null>(null);
+  const draftSaveTimerRef = useRef<number | null>(null);
   const draftSaveInFlightRef = useRef(false);
   const draftSavePromiseRef = useRef<Promise<void> | null>(null);
   const checkoutInFlightRef = useRef(false);
@@ -333,6 +342,29 @@ export default function PosPage() {
   }, [cashShiftId, refreshWaiting]);
 
   useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("pos-header-state", {
+        detail: {
+          userName,
+          cashRegisterName,
+          cashShiftId,
+          completedSales,
+          waitingCount: waitingSales.length,
+        },
+      }),
+    );
+  }, [cashRegisterName, cashShiftId, completedSales, userName, waitingSales.length]);
+
+  useEffect(() => {
+    const openWaiting = () => {
+      setWaitingOpen(true);
+      void refreshWaiting();
+    };
+    window.addEventListener("pos-open-waiting", openWaiting);
+    return () => window.removeEventListener("pos-open-waiting", openWaiting);
+  }, [refreshWaiting]);
+
+  useEffect(() => {
     const requestedConsultationId = searchParams.get("consultationId");
     if (
       !requestedConsultationId ||
@@ -407,11 +439,15 @@ export default function PosPage() {
             item.itemType === "service"
               ? services.find((entry) => entry.id === item.itemId)
               : products.find((entry) => entry.id === item.itemId);
+          const savedUnitPrice = Number(item.priceSnapshot);
           return catalogItem
             ? {
                 itemType: item.itemType,
                 item: catalogItem,
                 quantity: item.quantity,
+                ...(Number.isFinite(savedUnitPrice)
+                  ? { unitPrice: savedUnitPrice }
+                  : {}),
               }
             : null;
         })
@@ -508,6 +544,7 @@ export default function PosPage() {
     )
       return;
     const timer = window.setTimeout(async () => {
+      draftSaveTimerRef.current = null;
       draftSaveInFlightRef.current = true;
       setDraftSaveInFlight(true);
       const savePromise = (async () => {
@@ -549,7 +586,13 @@ export default function PosPage() {
         setDraftSaveInFlight(false);
       }
     }, 700);
-    return () => window.clearTimeout(timer);
+    draftSaveTimerRef.current = timer;
+    return () => {
+      window.clearTimeout(timer);
+      if (draftSaveTimerRef.current === timer) {
+        draftSaveTimerRef.current = null;
+      }
+    };
   }, [
     cart,
     clients,
@@ -573,10 +616,11 @@ export default function PosPage() {
     const productItems = products
       .filter(
         (item) =>
-          !term ||
-          `${item.name} ${item.category?.name ?? ""}`
-            .toLowerCase()
-            .includes(term),
+          (selectedCategoryId === null || item.categoryId === selectedCategoryId) &&
+          (!term ||
+            `${item.name} ${item.category?.name ?? ""}`
+              .toLowerCase()
+              .includes(term)),
       )
       .map((item) => ({ itemType: "product" as const, item }));
     const serviceItems = services
@@ -591,14 +635,33 @@ export default function PosPage() {
     return catalogFilter === "products"
       ? productItems
       : catalogFilter === "services"
-        ? serviceItems
+        ? selectedCategoryId === null
+          ? serviceItems
+          : []
         : [...productItems, ...serviceItems];
-  }, [catalogFilter, catalogSearch, products, services]);
-  const catalogPageCount = Math.max(1, Math.ceil(catalogItems.length / 8));
+  }, [catalogFilter, catalogSearch, products, selectedCategoryId, services]);
+  const catalogCategories = useMemo(
+    () =>
+      products
+        .filter((item) => item.category?.id && item.category.name)
+        .reduce<Array<{ id: number; name: string }>>((categories, item) => {
+          const category = item.category!;
+          if (!categories.some((entry) => entry.id === category.id)) {
+            categories.push({ id: category.id, name: category.name });
+          }
+          return categories;
+        }, [])
+        .sort((first, second) => first.name.localeCompare(second.name, "es")),
+    [products],
+  );
+  const catalogPageCount = Math.max(
+    1,
+    Math.ceil(catalogItems.length / CATALOG_PAGE_SIZE),
+  );
   const safeCatalogPage = Math.min(catalogPage, catalogPageCount);
   const paginatedCatalogItems = catalogItems.slice(
-    (safeCatalogPage - 1) * 8,
-    safeCatalogPage * 8,
+    (safeCatalogPage - 1) * CATALOG_PAGE_SIZE,
+    safeCatalogPage * CATALOG_PAGE_SIZE,
   );
   const genericClient = useMemo(
     () =>
@@ -622,6 +685,12 @@ export default function PosPage() {
   const tax = subscriptionCharges.length ? 0 : taxSubtotal * (1 - (Number(discountRate) || 0) / 100);
   const total = subtotal - discount + tax;
   const hasTicketItems = cart.length > 0 || subscriptionCharges.length > 0;
+  const paymentReceived = paymentLines.reduce(
+    (sum, line) => sum + (Number(line.amount) || 0),
+    0,
+  );
+  const pendingBalance = Math.max(0, total - paymentReceived);
+  const overpayment = Math.max(0, paymentReceived - total);
   const paid = paymentLines.reduce(
     (sum, line, index) =>
       sum +
@@ -799,6 +868,10 @@ export default function PosPage() {
     );
   };
   const clearTicket = () => {
+    if (draftSaveTimerRef.current !== null) {
+      window.clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
     setCart([]);
     setSubscriptionCharges([]);
     draftIdRef.current = null;
@@ -809,6 +882,8 @@ export default function PosPage() {
     setSelectedClient(null);
     setSelectedClientId(null);
     setDiscountRate("0");
+    setDiscountOpen(false);
+    setPaymentsOpen(false);
     setPaymentLines([{ method: "cash", amount: "" }]);
   };
 
@@ -825,12 +900,17 @@ export default function PosPage() {
     }
     if (!cashShiftId)
       return toast.error("Abre un turno de caja antes de confirmar la venta.");
-    const payments = paymentLines.map((line, index) => ({
-      method: line.method,
-      amount:
-        Number(line.amount) ||
-        (paymentLines.length === 1 && index === 0 ? total : 0),
-    }));
+    if (draftSaveTimerRef.current !== null) {
+      window.clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
+    const payments =
+      paymentLines.length === 1 && !Number(paymentLines[0]?.amount)
+        ? [{ method: "cash", amount: total }]
+        : paymentLines.map((line) => ({
+            method: line.method,
+            amount: Number(line.amount) || 0,
+          }));
     if (
       Math.abs(payments.reduce((sum, line) => sum + line.amount, 0) - total) >
       0.01
@@ -914,8 +994,15 @@ export default function PosPage() {
         `Stock insuficiente para ${product.name}. Disponible: ${product.stock}, solicitado: ${insufficientStockItem.quantity}.`,
       );
     }
+    if (draftSaveTimerRef.current !== null) {
+      window.clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
     setSubmitting(true);
     try {
+      if (draftSavePromiseRef.current) {
+        await draftSavePromiseRef.current;
+      }
       await createWaitingSale({
         clientId: Number(activeClientId),
         draftId: draftId ?? undefined,
@@ -1007,8 +1094,15 @@ export default function PosPage() {
     const sale = cancelSale;
     if (!sale || !activeClientId || !cashShiftId || !cart.length) return;
     setReplaceCartOpen(false);
+    if (draftSaveTimerRef.current !== null) {
+      window.clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
     setSubmitting(true);
     try {
+      if (draftSavePromiseRef.current) {
+        await draftSavePromiseRef.current;
+      }
       await createWaitingSale({
         clientId: Number(activeClientId),
         draftId: draftId ?? undefined,
@@ -1058,6 +1152,12 @@ export default function PosPage() {
     );
   const addPayment = () =>
     setPaymentLines((current) => [...current, { method: "cash", amount: "" }]);
+  const removePayment = (indexToRemove: number) =>
+    setPaymentLines((current) =>
+      current.length <= 1
+        ? current
+        : current.filter((_, index) => index !== indexToRemove),
+    );
 
   if (initialLoading || productsQuery.isLoading || servicesQuery.isLoading)
     return (
@@ -1068,7 +1168,7 @@ export default function PosPage() {
   return (
     <div className="-m-6 flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-[#f5f8f8] text-slate-900">
       <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col px-4 py-2 sm:px-6 lg:px-8">
-        <header className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-white px-3 py-2 shadow-[0_8px_30px_rgb(15_58_58/0.05)]">
+        {false && <header className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-white px-3 py-2 shadow-[0_8px_30px_rgb(15_58_58/0.05)]">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-teal-700 text-white">
               <PawPrint className="size-4" />
@@ -1126,7 +1226,7 @@ export default function PosPage() {
               <ChevronRight className="size-4" />
             </Button>
           </div>
-        </header>
+        </header>}
         {pendingDraft && (
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
             <div className="flex items-center gap-2">
@@ -1151,7 +1251,7 @@ export default function PosPage() {
             </div>
           </div>
         )}
-        <div className="grid min-h-0 flex-1 items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid min-h-0 flex-1 items-stretch gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(320px,1fr)]">
           <main className="min-w-0 space-y-3 overflow-y-auto pr-1">
             <Card className="border-slate-200/80 shadow-sm">
               <CardContent className="flex flex-wrap items-start justify-between gap-3 p-2.5">
@@ -1244,6 +1344,7 @@ export default function PosPage() {
               value={catalogFilter}
               onValueChange={(value) => {
                 setCatalogPage(1);
+                setSelectedCategoryId(null);
                 setCatalogFilter(value as CatalogFilter);
               }}
             >
@@ -1258,9 +1359,68 @@ export default function PosPage() {
                   Servicios
                 </TabsTrigger>
               </TabsList>
+              {catalogCategories.length > 0 && (
+                <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={selectedCategoryId === null ? "default" : "outline"}
+                    className="h-7 shrink-0 px-2.5 text-[11px]"
+                    onClick={() => {
+                      setSelectedCategoryId(null);
+                      setCatalogPage(1);
+                    }}
+                  >
+                    Todas las categorías
+                  </Button>
+                  {catalogCategories.map((category) => (
+                    <Button
+                      key={category.id}
+                      type="button"
+                      size="sm"
+                      variant={selectedCategoryId === category.id ? "default" : "outline"}
+                      className="h-7 shrink-0 px-2.5 text-[11px]"
+                      onClick={() => {
+                        setSelectedCategoryId(category.id);
+                        setCatalogFilter("products");
+                        setCatalogPage(1);
+                      }}
+                    >
+                      {category.name}
+                    </Button>
+                  ))}
+                </div>
+              )}
               <TabsContent value={catalogFilter} className="mt-3">
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
                   {paginatedCatalogItems.map(({ itemType, item }) => {
+                    const categoryName =
+                      itemType === "product"
+                        ? ((item as Product).category?.name ?? "").toLowerCase()
+                        : "servicio";
+                    const cardTheme = itemType === "service"
+                      ? {
+                          card: "border-violet-200 bg-violet-50/70 hover:border-violet-300",
+                          icon: "bg-violet-100 text-violet-700",
+                          action: "bg-violet-600 hover:bg-violet-700",
+                        }
+                      : categoryName.includes("alimento") || categoryName.includes("comida")
+                      ? {
+                          card: "border-amber-200 bg-amber-50/70 hover:border-amber-300",
+                          icon: "bg-amber-100 text-amber-700",
+                          action: "bg-amber-600 hover:bg-amber-700",
+                        }
+                      : categoryName.includes("juguete")
+                        ? {
+                            card: "border-violet-200 bg-violet-50/70 hover:border-violet-300",
+                            icon: "bg-violet-100 text-violet-700",
+                            action: "bg-violet-600 hover:bg-violet-700",
+                          }
+                        : {
+                            card: "border-teal-200 bg-teal-50/70 hover:border-teal-300",
+                            icon: "bg-teal-100 text-teal-700",
+                            action: "bg-teal-700 hover:bg-teal-800",
+                          };
                     const stock =
                       itemType === "product"
                         ? (item as Product).priceType === "VARIABLE"
@@ -1270,20 +1430,21 @@ export default function PosPage() {
                     return (
                       <Card
                         key={`${itemType}-${item.id}`}
-                        className="group border-slate-200/80 bg-white transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md"
+                        className={`group transition hover:-translate-y-0.5 hover:shadow-md ${cardTheme.card}`}
                       >
-                        <CardContent className="flex min-h-[104px] flex-col p-2.5">
-                          <div className="mb-2 flex items-start justify-between gap-2">
+                        <CardContent className="flex h-[88px] min-h-0 flex-col p-1.5">
+                          <div className="mb-1 flex items-start justify-between gap-1">
                             <div
-                              className={`flex size-8 items-center justify-center rounded-lg ${itemType === "service" ? "bg-violet-50 text-violet-700" : "bg-teal-50 text-teal-700"}`}
+                              className={`flex size-6 items-center justify-center rounded-md ${cardTheme.icon}`}
                             >
                               {itemType === "service" ? (
-                                <Stethoscope className="size-3.5" />
+                                <Stethoscope className="size-3" />
                               ) : (
-                                <Package className="size-3.5" />
+                                <Package className="size-3" />
                               )}
                             </div>
-                            <Badge
+                              <Badge
+                                className="px-1.5 py-0 text-[9px]"
                               variant={
                                 itemType === "service"
                                   ? "info"
@@ -1303,29 +1464,45 @@ export default function PosPage() {
                                     : `${stock} en stock`}
                             </Badge>
                           </div>
-                          <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-slate-900">
+                          <p className="line-clamp-1 text-xs font-semibold leading-tight text-slate-900">
                             {item.name}
                           </p>
-                          <p className="mt-1 line-clamp-2 min-h-6 text-[11px] text-slate-500">
+                          <p className="mt-0.5 line-clamp-1 text-[10px] leading-tight text-slate-500 xl:hidden">
                             {itemType === "service"
                               ? (item as Service).description ||
                                 "Atención veterinaria"
                               : (item as Product).description ||
                                 "Producto para clínica"}
                           </p>
-                          <div className="mt-auto flex items-end justify-between gap-2 pt-2">
-                            <span className="text-[13px] font-bold text-slate-900">
+                          <div className="mt-auto flex items-center justify-between gap-1 pt-1">
+                            <span className="text-xs font-bold text-slate-900">
                               {(itemType === "product" && (item as Product).priceType === "VARIABLE") ? "Importe variable" : money(Number(item.price))}
                             </span>
-                            <Button
-                              size="icon-sm"
-                              aria-label={`Agregar ${item.name}`}
-                              disabled={stock === 0 && (item as Product).priceType !== "VARIABLE"}
-                              onClick={() => addToCart(item, itemType)}
-                              className="rounded-lg bg-teal-700 text-white shadow-sm hover:bg-teal-800"
-                            >
-                              <Plus className="size-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                size="icon-sm"
+                                variant="outline"
+                                className="size-6 rounded-md border-slate-300 bg-white/70 p-0 text-slate-600 hover:bg-white"
+                                aria-label={`Ver información de ${item.name}`}
+                                title="Ver información"
+                                onClick={() =>
+                                  setCatalogInfoItem({ itemType, item } as CatalogInfoItem)
+                                }
+                              >
+                                <Info className="size-3.5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                size="icon-sm"
+                                className={`size-6 rounded-md text-white shadow-sm ${cardTheme.action}`}
+                                aria-label={`Agregar ${item.name}`}
+                                disabled={stock === 0 && (item as Product).priceType !== "VARIABLE"}
+                                onClick={() => addToCart(item, itemType)}
+                              >
+                                <Plus className="size-3.5" />
+                              </Button>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -1442,10 +1619,10 @@ export default function PosPage() {
                         {cart.map((entry) => (
                           <div
                             key={`${entry.itemType}-${entry.item.id}`}
-                            className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
+                            className="rounded-xl border border-slate-100 bg-slate-50/70 p-2"
                           >
-                            <div className="flex gap-3">
-                              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-teal-700">
+                            <div className="flex gap-2">
+                              <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white text-teal-700">
                                 <Package className="size-4" />
                               </div>
                               <div className="min-w-0 flex-1">
@@ -1468,13 +1645,13 @@ export default function PosPage() {
                                     <X className="size-4" />
                                   </button>
                                 </div>
-                                <p className="mt-1 text-[11px] text-slate-500">
+                                <p className="text-[11px] text-slate-500">
                                   {money(Number(entry.unitPrice ?? entry.item.price))} c/u ·{" "}
                                   {entry.itemType === "service"
                                     ? "Servicio"
                                     : "Producto"}
                                 </p>
-                                <div className="mt-2 flex items-center justify-between">
+                                <div className="mt-1 flex items-center justify-between">
                                   <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
                                     <Button
                                       variant="ghost"
@@ -1519,50 +1696,7 @@ export default function PosPage() {
                           </div>
                         ))}
                       </div>
-                      <Separator />
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between text-slate-500">
-                          <span>Subtotal</span>
-                          <span>{money(subtotal)}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <Label
-                            htmlFor="discount-rate"
-                            className="flex items-center gap-1 text-slate-500"
-                          >
-                            <Percent className="size-3.5" />
-                            Descuento
-                          </Label>
-                          <div className="flex items-center gap-1">
-                            <Input
-                              id="discount-rate"
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="0.01"
-                              value={discountRate}
-                              onChange={(event) =>
-                                setDiscountRate(event.target.value)
-                              }
-                              className="h-8 w-20 text-right"
-                            />
-                            <span className="text-xs text-slate-400">%</span>
-                          </div>
-                        </div>
-                        <div className="flex justify-between text-slate-500">
-                          <span>Impuestos</span>
-                          <span>{money(tax)}</span>
-                        </div>
-                        <div className="hidden items-end justify-between border-t border-slate-100 pt-3">
-                          <span className="font-semibold text-slate-700">
-                            Total a cobrar
-                          </span>
-                          <span className="text-2xl font-bold tracking-tight text-teal-800">
-                            {money(total)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
+                      {paymentsOpen && <div className="rounded-xl bg-slate-50 p-3">
                         <div className="mb-2 flex items-center justify-between">
                           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                             Medio de pago
@@ -1640,7 +1774,7 @@ export default function PosPage() {
                             {paymentLines.length > 1 && (
                               <div className="space-y-2 border-t border-slate-200 pt-2">
                                 {paymentLines.slice(1).map((line, index) => (
-                                  <div key={index + 1} className="flex gap-2">
+                                  <div key={index + 1} className="flex items-center gap-2">
                                     <Select
                                       value={line.method}
                                       onValueChange={(value) =>
@@ -1670,7 +1804,7 @@ export default function PosPage() {
                                       </SelectContent>
                                     </Select>
                                     <Input
-                                      className="h-8 w-24 text-xs"
+                                      className="h-8 w-28 text-xs"
                                       type="number"
                                       min="0"
                                       value={line.amount}
@@ -1688,18 +1822,129 @@ export default function PosPage() {
                                       }
                                       placeholder="Importe"
                                     />
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      className="size-8 shrink-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                                      onClick={() => removePayment(index + 1)}
+                                      aria-label={`Quitar medio de pago ${index + 2}`}
+                                      title="Quitar medio de pago"
+                                    >
+                                      <Trash2 className="size-4" aria-hidden="true" />
+                                    </Button>
                                   </div>
                                 ))}
                               </div>
                             )}
                           </TabsContent>
                         </Tabs>
-                      </div>
+                        <div className="mt-3 grid gap-2 border-t border-slate-200 pt-3 text-xs sm:grid-cols-2">
+                          <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
+                            <span className="text-slate-500">Pago a recibir</span>
+                            <strong className="text-slate-800">
+                              {money(paymentReceived)}
+                            </strong>
+                          </div>
+                          <div
+                            className={`flex items-center justify-between rounded-lg px-3 py-2 ${
+                              pendingBalance > 0
+                                ? "bg-amber-50"
+                                : overpayment > 0
+                                  ? "bg-rose-50"
+                                  : "bg-emerald-50"
+                            }`}
+                          >
+                            <span
+                              className={
+                                pendingBalance > 0
+                                  ? "text-amber-800"
+                                  : overpayment > 0
+                                    ? "text-rose-800"
+                                    : "text-emerald-800"
+                              }
+                            >
+                              {overpayment > 0 ? "Excedente" : "Saldo pendiente"}
+                            </span>
+                            <strong
+                              className={
+                                pendingBalance > 0
+                                  ? "text-amber-800"
+                                  : overpayment > 0
+                                    ? "text-rose-800"
+                                    : "text-emerald-800"
+                              }
+                            >
+                              {money(overpayment > 0 ? overpayment : pendingBalance)}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>}
                     </>
                   )}
               </CardContent>
               </ScrollArea>
-              <div className="shrink-0 border-t border-slate-100 bg-white px-5 py-3">
+              <div className="shrink-0 border-t border-slate-100 bg-white px-4 py-2">
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 flex-1 px-2 text-xs"
+                    onClick={() => setDiscountOpen((open) => !open)}
+                  >
+                    <Percent className="mr-1.5 size-3.5" />
+                    Descuentos
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 flex-1 px-2 text-xs"
+                    onClick={() => setPaymentsOpen((open) => !open)}
+                  >
+                    <CreditCard className="mr-1.5 size-3.5" />
+                    Pagos
+                  </Button>
+                </div>
+              </div>
+              <div className="shrink-0 border-t border-slate-100 bg-white px-4 ">
+                <div className="space-y-1.5 rounded-xl border border-slate-100 bg-slate-50/70 p-2 text-sm">
+                  <div className="flex justify-between text-slate-500">
+                    <span>Subtotal</span>
+                    <span>{money(subtotal)}</span>
+                  </div>
+                  {discountOpen && (
+                    <div className="flex items-center justify-between gap-3">
+                      <Label
+                        htmlFor="discount-rate"
+                        className="flex items-center gap-1 text-slate-500"
+                      >
+                        <Percent className="size-3.5" />
+                        Descuento
+                      </Label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          id="discount-rate"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={discountRate}
+                          onChange={(event) => setDiscountRate(event.target.value)}
+                          className="h-8 w-20 text-right"
+                        />
+                        <span className="text-xs text-slate-400">%</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-slate-500">
+                    <span>Impuestos</span>
+                    <span>{money(tax)}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="shrink-0 border-t border-slate-100 bg-white px-4 py-2">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-semibold text-slate-700">
                     Total a cobrar
@@ -1709,7 +1954,7 @@ export default function PosPage() {
                   </span>
                 </div>
               </div>
-              <div className="space-y-2 border-t border-slate-100 bg-white p-5">
+              <div className="space-y-2 border-t border-slate-100 bg-white p-4">
                 {insufficientStockItem && (
                   <p className="text-sm text-destructive">
                     Stock insuficiente para {insufficientStockItem.item.name}: disponible {(
@@ -1773,9 +2018,6 @@ export default function PosPage() {
                     </button>
                   </div>
                 )}
-                <p className="text-center text-[10px] text-slate-400">
-                  El cobro registra pagos y stock de forma atómica.
-                </p>
               </div>
             </Card>
           </aside>
@@ -1791,6 +2033,94 @@ export default function PosPage() {
           </span>
         </footer>
       </div>
+      <Dialog
+        open={Boolean(catalogInfoItem)}
+        onOpenChange={(open) => !open && setCatalogInfoItem(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="size-5 text-teal-700" />
+              Información del artículo
+            </DialogTitle>
+            <DialogDescription>
+              Consulta los datos del artículo antes de agregarlo al ticket.
+            </DialogDescription>
+          </DialogHeader>
+          {catalogInfoItem && (
+            <div className="space-y-3">
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-900">
+                  {catalogInfoItem.item.name}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {catalogInfoItem.item.description || "Sin descripción disponible."}
+                </p>
+              </div>
+              <div className="grid gap-2 text-sm sm:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 p-2.5">
+                  <span className="block text-xs text-slate-500">Precio</span>
+                  <strong className="text-slate-900">
+                    {catalogInfoItem.itemType === "product" && catalogInfoItem.item.priceType === "VARIABLE"
+                      ? "Importe variable"
+                      : money(Number(catalogInfoItem.item.price))}
+                  </strong>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-2.5">
+                  <span className="block text-xs text-slate-500">Categoría</span>
+                  <strong className="text-slate-900">
+                    {catalogInfoItem.itemType === "product"
+                      ? catalogInfoItem.item.category?.name || "Sin categoría"
+                      : catalogInfoItem.item.category || "Servicio"}
+                  </strong>
+                </div>
+                {catalogInfoItem.itemType === "product" ? (
+                  <>
+                    <div className="rounded-lg border border-slate-200 p-2.5">
+                      <span className="block text-xs text-slate-500">Stock</span>
+                      <strong className="text-slate-900">
+                        {catalogInfoItem.item.priceType === "VARIABLE"
+                          ? "No aplica"
+                          : `${catalogInfoItem.item.stock} unidades`}
+                      </strong>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-2.5">
+                      <span className="block text-xs text-slate-500">SKU</span>
+                      <strong className="text-slate-900">
+                        {catalogInfoItem.item.sku || "Sin SKU"}
+                      </strong>
+                    </div>
+                    {(catalogInfoItem.item.brand || catalogInfoItem.item.supplier) && (
+                      <div className="rounded-lg border border-slate-200 p-2.5 sm:col-span-2">
+                        <span className="block text-xs text-slate-500">Marca / proveedor</span>
+                        <strong className="text-slate-900">
+                          {[catalogInfoItem.item.brand, catalogInfoItem.item.supplier]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </strong>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-slate-200 p-2.5">
+                    <span className="block text-xs text-slate-500">Duración</span>
+                    <strong className="text-slate-900">
+                      {catalogInfoItem.item.duration
+                        ? `${catalogInfoItem.item.duration} minutos`
+                        : "No especificada"}
+                    </strong>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCatalogInfoItem(null)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={Boolean(variableProduct)} onOpenChange={(open) => !open && setVariableProduct(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

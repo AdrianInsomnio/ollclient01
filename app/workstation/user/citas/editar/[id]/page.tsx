@@ -99,8 +99,7 @@ export default function EditarCitaPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Editar Cita</h1>
+      <div className="flex justify-end">
         <a href={`/workstation/user/citas/${appointmentId}`} className="text-sm text-gray-600 hover:underline">
           ← Ver cita
         </a>

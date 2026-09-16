@@ -92,8 +92,7 @@ export default function UserCashPage() {
   if (loading) return <div className="flex min-h-64 items-center justify-center"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
 
   return <div className="space-y-6">
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Operación diaria</p><h1 className="mt-1 text-3xl font-semibold tracking-tight">Caja del día</h1><p className="mt-1 max-w-xl text-sm text-muted-foreground">Controla el efectivo, registra movimientos y cierra tu turno con una diferencia clara.</p></div>
+    <header className="flex justify-end">
       <Button variant="outline" size="icon" onClick={() => void load()} disabled={refreshing} aria-label="Actualizar caja"><RefreshCw className={refreshing ? 'size-4 animate-spin' : 'size-4'} /></Button>
     </header>
 

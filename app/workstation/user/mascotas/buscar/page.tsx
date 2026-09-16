@@ -28,8 +28,7 @@ export default function PetSearchPage() {
 
   return (
     <div className='space-y-6'>
-      <div className='flex items-center justify-between'>
-        <h1 className='text-2xl font-bold'>Buscar Mascota</h1>
+      <div className='flex justify-end'>
         <Link href='/workstation/user/mascotas/nuevo'>
           <Button><Plus className='h-4 w-4 mr-2' />Nueva Mascota</Button>
         </Link>

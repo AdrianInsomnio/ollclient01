@@ -274,16 +274,7 @@ export default function CitasPage() {
         : formatDate(selectedDate, { month: "long", year: "numeric" });
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-        <div>
-          <p className="text-sm font-medium text-primary">Operación</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            Agenda de Citas
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Organizá las citas y el flujo de atención de la clínica.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={() => setNewOpen(true)}>
           <Plus className="mr-2 size-4" />
           Nueva Cita

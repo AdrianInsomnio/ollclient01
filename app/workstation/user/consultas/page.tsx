@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Filter, PawPrint, PlusCircle, Search, Stethoscope, UserRound, X } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Filter, PawPrint, PlusCircle, Search, Stethoscope, UserRound, X } from 'lucide-react'
 import { getConsultations, type Consultation } from '@/lib/api/consultations'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -75,8 +75,7 @@ export default function ConsultationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><ClipboardList className="h-5 w-5" /></div><div><h1 className="text-2xl font-bold tracking-tight text-gray-900">Consultas</h1><p className="text-sm text-muted-foreground">Consulta y revisa el historial de atenciones.</p></div></div>
+      <div className="flex justify-end">
         <Link href="/workstation/user/consultas/nuevo"><Button className="w-full gap-2 md:w-auto"><PlusCircle className="h-4 w-4" />Nueva Consulta</Button></Link>
       </div>
 

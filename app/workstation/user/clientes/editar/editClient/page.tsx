@@ -34,7 +34,6 @@ export default function EditClientPage() {
 
   return (
     <div className='space-y-6'>
-      <h1 className='text-2xl font-bold text-gray-900'>Editar Cliente</h1>
       <ClientForm 
         client={client} 
         onSuccess={() => router.push('/workstation/user/clientes/' + clientId)}
