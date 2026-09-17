@@ -26,6 +26,10 @@ export interface Consultation {
     breed?: string;
   };
   vetId?: string;
+  veterinarianId?: number | null;
+  historyStartedAt?: string | null;
+  historyEndedAt?: string | null;
+  historyConsultorioName?: string | null;
   status: "OPEN" | "CLOSED";
   priority: "URGENT" | "SCHEDULED" | "NORMAL";
   consultorioId?: number | null;
@@ -113,6 +117,12 @@ export interface UpdateClinicalPayload {
 
 interface ConsultationsResponse {
   consultations: Consultation[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 interface ConsultationResponse {
@@ -144,6 +154,33 @@ export async function getConsultations(): Promise<Consultation[]> {
   return response.consultations;
 }
 
+export interface MyConsultationsFilters {
+  search?: string;
+  patient?: string;
+  client?: string;
+  from?: string;
+  to?: string;
+  status?: Consultation["status"];
+  page?: number;
+  limit?: number;
+}
+
+export interface MyConsultationsResponse {
+  consultations: Consultation[];
+  pagination: NonNullable<ConsultationsResponse["pagination"]>;
+}
+
+export async function getMyConsultations(
+  filters: MyConsultationsFilters = {},
+): Promise<MyConsultationsResponse> {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, String(value));
+  });
+  const query = params.toString();
+  return get<MyConsultationsResponse>(`/consultations/mine${query ? `?${query}` : ""}`);
+}
+
 export async function getConsultation(id: string): Promise<Consultation> {
   const response = await get<ConsultationResponse>("/consultations/" + id);
   return response.consultation;
@@ -152,6 +189,22 @@ export async function getConsultation(id: string): Promise<Consultation> {
 export async function getOpenConsultations(): Promise<Consultation[]> {
   const response = await get<ConsultationsResponse>("/consultations/queue");
   return response.consultations;
+}
+
+export type VeterinarianAvailability = {
+  id: number;
+  username: string;
+  available: boolean;
+  updatedAt: string | null;
+};
+
+export async function getVeterinarianAvailability(): Promise<VeterinarianAvailability[]> {
+  const response = await get<{ veterinarians: VeterinarianAvailability[] }>('/consultations/availability');
+  return response.veterinarians;
+}
+
+export async function setVeterinarianAvailability(available: boolean) {
+  return post<{ available: boolean }>('/consultations/availability', { available });
 }
 
 export interface ConsultorioAssignmentPayload {

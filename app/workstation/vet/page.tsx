@@ -1,16 +1,31 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from '@/lib/auth-store'
 import { getAppointmentsByDate } from '@/lib/api/appointments'
+import { getVeterinarianAvailability, setVeterinarianAvailability } from '@/lib/api/consultations'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { CheckCircle2, CircleOff } from 'lucide-react'
 
 export default function VetHomePage() {
+  const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
   const today = new Date().toISOString().split('T')[0]
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['appointments', today],
     queryFn: () => getAppointmentsByDate(today),
+  })
+  const { data: availability = [] } = useQuery({
+    queryKey: ['veterinarian-availability'],
+    queryFn: getVeterinarianAvailability,
+  })
+  const currentVet = availability.find((vet) => vet.id === user?.id)
+  const availabilityMutation = useMutation({
+    mutationFn: setVeterinarianAvailability,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['veterinarian-availability'] }),
   })
 
   const todayAppointments = appointments?.filter(
@@ -19,6 +34,27 @@ export default function VetHomePage() {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-lg">Disponibilidad</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">Indica si puedes recibir una nueva atención.</p>
+          </div>
+          <Badge variant={currentVet?.available ? 'default' : 'secondary'} className={currentVet?.available ? 'bg-emerald-100 text-emerald-700' : ''}>
+            {currentVet?.available ? 'Disponible' : 'No disponible'}
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant={currentVet?.available ? 'outline' : 'default'}
+            disabled={availabilityMutation.isPending}
+            onClick={() => availabilityMutation.mutate(!currentVet?.available)}
+          >
+            {currentVet?.available ? <CircleOff className="mr-2 size-4" /> : <CheckCircle2 className="mr-2 size-4" />}
+            {currentVet?.available ? 'Marcar como no disponible' : 'Marcarme como disponible'}
+          </Button>
+        </CardContent>
+      </Card>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

@@ -10,7 +10,7 @@ import {
 } from "@/lib/api/consultations";
 import { getAppointments } from "@/lib/api/appointments";
 import { getConsultorios } from "@/lib/api/consultorios";
-import { getAdminUsers } from "@/lib/api/admin";
+import { getVeterinarianAvailability } from "@/lib/api/consultations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -450,16 +450,17 @@ export default function ColaPage() {
     queryKey: ["consultorios"],
     queryFn: () => getConsultorios(),
   });
-  const { data: adminUsers, isLoading: loadingVets } = useQuery({
-    queryKey: ["admin-users"],
-    queryFn: () => getAdminUsers(),
+  const { data: veterinarianAvailability = [], isLoading: loadingAvailability } = useQuery({
+    queryKey: ["veterinarian-availability"],
+    queryFn: getVeterinarianAvailability,
   });
   const isLoading =
     loadingConsultations ||
     loadingAppointments ||
     loadingAllConsultations ||
     loadingConsultorios ||
-    loadingVets;
+    loadingAvailability;
+    
   const queuePatients = useMemo(() => {
     if (!consultations?.length) return [];
     return consultations.map(mapConsultationToQueuePatient);
@@ -488,8 +489,7 @@ export default function ColaPage() {
     () => calculateFilterCounts(queuePatients),
     [queuePatients],
   );
-  const vets =
-    adminUsers?.users?.filter((u) => u.role === "VET" && u.isActive) || [];
+  const vets = veterinarianAvailability;
   const completedToday =
     allConsultations?.filter(
       (consultation) =>
@@ -790,19 +790,17 @@ export default function ColaPage() {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{vet.username}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Veterinario
-                        </p>
+                        <p className="text-xs text-muted-foreground">Veterinario</p>
                       </div>
                       <Badge
-                        variant={vet.isActive ? "default" : "secondary"}
+                        variant={vet.available ? "default" : "secondary"}
                         className={
-                          vet.isActive
+                          vet.available
                             ? "bg-green-100 text-green-700 border-green-200"
                             : "bg-red-100 text-red-700 border-red-200"
                         }
                       >
-                        {vet.isActive ? "Libre" : "Ocupado"}
+                        {vet.available ? "Disponible" : "No disponible"}
                       </Badge>
                     </div>
                   ))}

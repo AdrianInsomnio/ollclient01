@@ -18,12 +18,12 @@ export default function VetLayout({
 
   useEffect(() => {
     if (checking) return
-    if (!isAuthenticated || user?.role !== 'VET') {
+    if (!isAuthenticated || !['VET', 'VETERINARIAN'].includes(user?.role ?? '')) {
       router.replace('/login')
     }
   }, [user, isAuthenticated, checking, router])
 
-  if (checking || !isAuthenticated || user?.role !== 'VET') {
+  if (checking || !isAuthenticated || !['VET', 'VETERINARIAN'].includes(user?.role ?? '')) {
     return null
   }
 

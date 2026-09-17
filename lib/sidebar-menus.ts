@@ -9,6 +9,7 @@ import {
   Briefcase,
   Wallet,
   Calendar,
+  CalendarClock,
   ShoppingCart,
   LucideIcon,
 } from "lucide-react";
@@ -48,6 +49,7 @@ const iconMap: Record<string, LucideIcon> = {
   Briefcase,
   Wallet,
   Calendar,
+  CalendarClock,
   ShoppingCart,
 };
 
@@ -301,6 +303,11 @@ export const veterinarianSidebar: MenuGroup[] = [
         href: "/workstation/vet/historial",
         label: "Fichas Médicas",
         icon: "FileText",
+      },
+      {
+        href: "/workstation/vet/atenciones",
+        label: "Mis atenciones",
+        icon: "CalendarClock",
       },
       { href: "/workstation/vet/recetas", label: "Recetas", icon: "FileText" },
       {
