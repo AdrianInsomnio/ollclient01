@@ -85,6 +85,7 @@ import {
   createWaitingSale,
   deleteSale,
   getDraftSales,
+  getSales,
   getSaleById,
   getWaitingSales,
   prepareInstallmentsForPos,
@@ -295,6 +296,23 @@ export default function PosPage() {
     }
   }, [cashShiftId]);
 
+  const refreshCompletedSales = useCallback(async () => {
+    if (!cashShiftId) {
+      setCompletedSales(0);
+      return;
+    }
+
+    try {
+      const sales = await getSales({ cashShiftId });
+      setCompletedSales(
+        sales.filter((sale) => sale.status === "CONFIRMED").length,
+      );
+    } catch (error) {
+      console.error("No se pudieron cargar las ventas del turno.", error);
+      setCompletedSales(0);
+    }
+  }, [cashShiftId]);
+
   const insufficientStockItem = cart.find(
     (entry) =>
       entry.itemType === "product" &&
@@ -341,6 +359,10 @@ export default function PosPage() {
   useEffect(() => {
     if (cashShiftId) void refreshWaiting();
   }, [cashShiftId, refreshWaiting]);
+
+  useEffect(() => {
+    void refreshCompletedSales();
+  }, [refreshCompletedSales]);
 
   useEffect(() => {
     window.dispatchEvent(
@@ -966,7 +988,7 @@ export default function PosPage() {
           ),
         );
       }
-      setCompletedSales((count) => count + 1);
+      await refreshCompletedSales();
       clearTicket();
       toast.success("Venta cobrada correctamente.");
     } catch (error) {
