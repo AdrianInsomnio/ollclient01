@@ -754,6 +754,13 @@ function AppointmentCard({
   const isCancelled = appointment.status === "cancelled";
   const effectiveStatus = getEffectiveStatus(appointment);
   const isCompleted = effectiveStatus === "completed";
+  const appointmentDate = new Date(appointment.date);
+  const calendarMonth = formatDate(appointmentDate, { month: "short" })
+    .replace(".", "")
+    .toUpperCase();
+  const calendarWeekday = formatDate(appointmentDate, { weekday: "short" })
+    .replace(".", "")
+    .toUpperCase();
   return (
     <div
       role="button"
@@ -772,9 +779,31 @@ function AppointmentCard({
       className={`rounded-xl border p-4 transition-colors ${isCancelled ? "bg-muted/30 opacity-70" : isCompleted ? "border-emerald-200 bg-emerald-50/60 hover:border-emerald-300" : "bg-background hover:border-primary/30 hover:shadow-sm"}`}
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-start">
-        <div className="flex min-w-24 items-center gap-2 text-sm font-semibold">
-          <Clock3 className="size-4 text-primary" />
-          {formatTime(appointment.date)}
+        <div
+          className="flex w-[4.75rem] shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-center shadow-sm"
+          aria-label={`Cita del ${formatDate(appointmentDate, {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          })} a las ${formatTime(appointment.date)}`}
+        >
+          <div className="flex items-center justify-center gap-1 bg-slate-900 px-2 py-1 text-[10px] font-bold tracking-[0.14em] text-white">
+            <CalendarDays className="size-3" aria-hidden="true" />
+            {calendarMonth}
+          </div>
+          <div className="px-2 pb-2 pt-1.5">
+            <span className="block text-2xl font-bold leading-none tracking-tight text-slate-950">
+              {appointmentDate.getDate()}
+            </span>
+            <span className="mt-1 block text-[10px] font-semibold tracking-[0.12em] text-slate-500">
+              {calendarWeekday}
+            </span>
+            <span className="mt-2 flex items-center justify-center gap-1 border-t border-slate-100 pt-1.5 text-xs font-semibold tabular-nums text-primary">
+              <Clock3 className="size-3" aria-hidden="true" />
+              {formatTime(appointment.date)}
+            </span>
+          </div>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
