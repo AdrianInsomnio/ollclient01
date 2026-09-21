@@ -1195,7 +1195,7 @@ export default function PosPage() {
     );
   return (
     <div className="-m-6 flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-[#f5f8f8] text-slate-900">
-      <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col px-4 py-2 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-0 w-full max-w-400 flex-1 flex-col px-4 py-2 sm:px-6 lg:px-8">
         {false && <header className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-white px-3 py-2 shadow-[0_8px_30px_rgb(15_58_58/0.05)]">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-teal-700 text-white">
@@ -1460,7 +1460,7 @@ export default function PosPage() {
                         key={`${itemType}-${item.id}`}
                         className={`group transition hover:-translate-y-0.5 hover:shadow-md ${cardTheme.card}`}
                       >
-                        <CardContent className="flex h-[88px] min-h-0 flex-col p-1.5">
+                        <CardContent className="flex h-22 min-h-0 flex-col p-1.5">
                           <div className="mb-1 flex items-start justify-between gap-1">
                             <div
                               className={`flex size-6 items-center justify-center rounded-md ${cardTheme.icon}`}
@@ -1617,7 +1617,7 @@ export default function PosPage() {
                       <p className="mt-4 text-sm font-semibold text-slate-700">
                         Tu ticket está vacío
                       </p>
-                      <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-slate-500">
+                      <p className="mt-1 max-w-55 text-xs leading-relaxed text-slate-500">
                         Agrega productos o servicios desde el catálogo para
                         comenzar.
                       </p>
@@ -2247,7 +2247,7 @@ export default function PosPage() {
           }
         }}
       >
-        <AlertDialogContent className="w-[min(90vw,45rem)] !max-w-[45rem]">
+        <AlertDialogContent className="w-[min(90vw,45rem)] max-w-180!">
           <AlertDialogHeader>
             <AlertDialogTitle>Este cliente tiene una cuenta en espera</AlertDialogTitle>
             <AlertDialogDescription>
@@ -2433,7 +2433,7 @@ export default function PosPage() {
         </AlertDialogContent>
       </AlertDialog>
       <AlertDialog open={replaceCartOpen} onOpenChange={setReplaceCartOpen}>
-        <AlertDialogContent className="w-[min(90vw,45rem)] !max-w-[45rem]">
+        <AlertDialogContent className="w-[min(90vw,45rem)] max-w-180!">
           <AlertDialogHeader>
             <AlertDialogTitle>Ya tienes una venta en curso</AlertDialogTitle>
             <AlertDialogDescription>
