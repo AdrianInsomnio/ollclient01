@@ -284,6 +284,11 @@ export const veterinarianSidebar: MenuGroup[] = [
     icon: "Stethoscope",
     items: [
       {
+        href: "/workstation/vet",
+        label: "Inicio",
+        icon: "LayoutDashboard",
+      },
+      {
         href: "/workstation/vet/cola",
         label: "Pacientes en Espera",
         icon: "Calendar",

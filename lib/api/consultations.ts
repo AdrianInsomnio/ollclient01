@@ -196,6 +196,8 @@ export type VeterinarianAvailability = {
   username: string;
   available: boolean;
   updatedAt: string | null;
+  durationMinutes?: number;
+  expiresAt?: string | null;
 };
 
 export async function getVeterinarianAvailability(): Promise<VeterinarianAvailability[]> {
@@ -203,8 +205,8 @@ export async function getVeterinarianAvailability(): Promise<VeterinarianAvailab
   return response.veterinarians;
 }
 
-export async function setVeterinarianAvailability(available: boolean) {
-  return post<{ available: boolean }>('/consultations/availability', { available });
+export async function setVeterinarianAvailability(data: { available: boolean; durationMinutes?: number }) {
+  return post<{ available: boolean }>('/consultations/availability', data);
 }
 
 export interface ConsultorioAssignmentPayload {
