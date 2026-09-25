@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import type { ReactNode } from "react"
 import { ArrowLeft, CheckCircle2, Loader2, Printer, Stethoscope } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -30,7 +31,9 @@ export interface MedicalHeaderProps {
   onPrint?: () => void
   printing?: boolean
   /** Total a pagar visible en el header (mobile y desktop). */
-  totalCents: Cents
+  totalCents?: Cents
+  /** Contenido clínico asociado que comparte el mismo card del encabezado. */
+  children?: ReactNode
   /** Href al cual volver. */
   backHref?: string
 }
@@ -56,7 +59,8 @@ export function MedicalHeader(props: MedicalHeaderProps) {
     finalizing = false,
     onPrint,
     printing = false,
-    totalCents,
+      totalCents,
+      children,
     backHref,
   } = props
   const router = useRouter()
@@ -126,10 +130,12 @@ export function MedicalHeader(props: MedicalHeaderProps) {
               Imprimir
             </Button>
           ) : null}
-          <div className="flex items-center gap-2 md:hidden" aria-label="Total">
-            <span className="text-muted-foreground text-xs">Total</span>
-            <span className="text-sm font-semibold">{formatMoney(totalCents)}</span>
-          </div>
+            {totalCents != null ? (
+              <div className="flex items-center gap-2 md:hidden" aria-label="Total">
+                <span className="text-muted-foreground text-xs">Total</span>
+                <span className="text-sm font-semibold">{formatMoney(totalCents)}</span>
+              </div>
+            ) : null}
           {onFinalize ? (
             <Button
               onClick={onFinalize}
@@ -144,7 +150,12 @@ export function MedicalHeader(props: MedicalHeaderProps) {
             </Button>
           ) : null}
         </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+        {children ? (
+          <CardContent className="border-t pt-4">
+            {children}
+          </CardContent>
+        ) : null}
+      </Card>
   )
 }

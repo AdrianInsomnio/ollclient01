@@ -18,6 +18,7 @@ export interface Sale {
   pet?: { id: string | number; name: string }
   createdAt?: string
   updatedAt?: string
+  notes?: string | null
   cashShiftId?: number | null
   payments?: Array<{ id?: string; method: string; amount: number }>
 }
@@ -192,6 +193,8 @@ export interface UpdateSalePayload {
   items: CreateSalePayload['items']
   discount?: number
   paymentMethod?: string
+  /** Mantiene una cuenta WAITING al actualizarla desde la atención veterinaria. */
+  keepWaiting?: boolean
   reason?: string
   notes?: string
   cashShiftId?: number

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
@@ -18,18 +18,13 @@ import {
 import { getPetHistory } from "@/lib/api/pets"
 import { getProducts, type Product } from "@/lib/api/products"
 import { getServices, type Service } from "@/lib/api/services"
-import { createSale } from "@/lib/api/sales"
+import { updateSale } from "@/lib/api/sales"
 
 import {
-  computeCartTotal,
   itemToSalePayload,
   newCartKey,
   type CartItem,
 } from "@/lib/workstation/commerce-cart"
-import {
-  getMockSchedule,
-  type ConsultationSchedule,
-} from "@/lib/workstation/schedule.mock"
 import { workspaceToast } from "@/lib/workstation/toast"
 import { useAuthStore } from "@/lib/auth-store"
 
@@ -47,18 +42,8 @@ import {
   CommercePanel,
   ConsultationTabs,
   MedicalHeader,
-  MobileCheckoutBar,
   PetClientCard,
-  type PaymentMethodOption,
 } from "@/components/workstation"
-
-const dateFormatter = new Intl.DateTimeFormat("es-UY", {
-  weekday: "short",
-  day: "2-digit",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-})
 
 export default function VetConsultationDetailPage() {
   const params = useParams<{ id: string }>()
@@ -91,66 +76,64 @@ export default function VetConsultationDetailPage() {
     queryFn: () => getServices({ isActive: true }),
   })
 
-  // Mock tipado de turno/profesional.
-  const [schedule, setSchedule] = useState<ConsultationSchedule | null>(null)
-  useEffect(() => {
-    if (!consultationId) return
-    let active = true
-    void getMockSchedule(consultationId).then((s) => {
-      if (active) setSchedule(s)
-    })
-    return () => {
-      active = false
-    }
-  }, [consultationId])
-
   // Estado del carrito comercial.
   const [cart, setCart] = useState<CartItem[]>([])
   const [discountPercent, setDiscountPercent] = useState(0)
   const [saleNotes, setSaleNotes] = useState("")
-  const [paymentMethod, setPaymentMethod] =
-    useState<PaymentMethodOption>("CASH")
   const [itemDialogOpen, setItemDialogOpen] = useState(false)
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false)
+  const consultation = consultationQuery.data
+  const isClosed = consultation?.status === "CLOSED"
 
   const closeMutation = useMutation({
-    mutationFn: () => closeConsultation(consultationId, {
-      items: cart.map((item) => {
-        const payload = itemToSalePayload(item)
-        return {
-          itemType: payload.itemType,
-          itemId: payload.itemId,
-          quantity: payload.quantity,
-          ...(item.kind === "service"
-            ? {
-                nameSnapshot: payload.nameSnapshot,
-                priceSnapshot: payload.priceSnapshot,
-              }
-            : {}),
+    mutationFn: async () => {
+      if (!consultation) throw new Error("Consulta no cargada")
+      const waitingSale = consultation.sales?.find((sale) => sale.status === "WAITING")
+      if (cart.length > 0) {
+        if (!waitingSale) {
+          throw new Error("Esta atención no tiene una cuenta en espera vinculada. Solicite a recepción que la cree.")
         }
-      }),
-      discount: discountPercent,
-      paymentMethod,
-    }),
-    onSuccess: async (result) => {
+        await updateSale(String(waitingSale.id), {
+          keepWaiting: true,
+          discount: discountPercent,
+          notes: saleNotes || undefined,
+          items: cart.map((item) => {
+            const payload = itemToSalePayload(item)
+            return {
+              itemType: payload.itemType,
+              itemId: payload.itemId,
+              quantity: payload.quantity,
+              ...(item.kind === "service"
+                ? { nameSnapshot: payload.nameSnapshot, priceSnapshot: payload.priceSnapshot }
+                : {}),
+            }
+          }),
+        })
+      }
+      return closeConsultation(consultationId, { items: [], discount: 0 })
+    },
+    onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: ["consultation", consultationId],
       })
       await queryClient.invalidateQueries({ queryKey: ["consultations"] })
       await queryClient.invalidateQueries({ queryKey: ["consultations-open"] })
+      await queryClient.invalidateQueries({ queryKey: ["my-consultations"] })
+      await queryClient.invalidateQueries({ queryKey: ["sales"] })
+      await queryClient.invalidateQueries({ queryKey: ["waiting-sales"] })
+        if (consultationQuery.data?.petId != null) {
+          await queryClient.invalidateQueries({
+            queryKey: ["pet-history", tenantId, consultationQuery.data.petId],
+          })
+        }
       setConfirmCloseOpen(false)
       setCart([])
       setDiscountPercent(0)
       setSaleNotes("")
-      toast.success(
-        result.sale ? "Atención finalizada y venta registrada." : "Atención finalizada correctamente.",
-      )
+        toast.success("Atención finalizada. La cuenta sigue en espera para recepción.")
     },
     onError: (err) => workspaceToast.clinicalError(err),
   })
-
-  const consultation = consultationQuery.data
-  const isClosed = consultation?.status === "CLOSED"
 
   // Mutaciones clinicas.
   const updateClinical = useMutation({
@@ -160,6 +143,12 @@ export default function VetConsultationDetailPage() {
       queryClient.invalidateQueries({
         queryKey: ["consultation", consultationId],
       })
+      queryClient.invalidateQueries({ queryKey: ["consultations-open"] })
+      if (consultationQuery.data?.petId != null) {
+        queryClient.invalidateQueries({
+          queryKey: ["pet-history", tenantId, consultationQuery.data.petId],
+        })
+      }
       workspaceToast.clinicalSaved()
     },
     onError: (err) => workspaceToast.clinicalError(err),
@@ -181,6 +170,11 @@ export default function VetConsultationDetailPage() {
       queryClient.invalidateQueries({
         queryKey: ["consultation", consultationId],
       })
+      if (consultationQuery.data?.petId != null) {
+        queryClient.invalidateQueries({
+          queryKey: ["pet-history", tenantId, consultationQuery.data.petId],
+        })
+      }
       if (variables.kind === "diagnosis") {
         workspaceToast.diagnosisAdded()
       } else if (variables.kind === "treatment") {
@@ -192,74 +186,27 @@ export default function VetConsultationDetailPage() {
     onError: (err) => workspaceToast.clinicalEntryError(err),
   })
 
-  // Mutacion comercial.
-  const checkout = useMutation({
-    mutationFn: async () => {
-      if (!consultation) throw new Error("Consulta no cargada")
-      return createSale({
-        clientId: consultation.clientId,
-        petId: consultation.petId,
-        consultationId: consultation.id,
-        discount: discountPercent,
-        paymentMethod,
-        items: cart.map((item) => {
-          const payload = itemToSalePayload(item)
-          if (item.kind === "service") {
-            return {
-              itemType: payload.itemType,
-              itemId: payload.itemId,
-              quantity: payload.quantity,
-              nameSnapshot: payload.nameSnapshot,
-              priceSnapshot: payload.priceSnapshot,
-            }
-          }
-          return {
-            itemType: payload.itemType,
-            itemId: payload.itemId,
-            quantity: payload.quantity,
-          }
-        }),
-        notes: saleNotes || undefined,
-      })
-    },
-    onSuccess: (sale) => {
-      queryClient.invalidateQueries({
-        queryKey: ["consultation", consultationId],
-      })
-      queryClient.invalidateQueries({ queryKey: ["sales"] })
-      queryClient.invalidateQueries({ queryKey: ["products", "active", tenantId] })
-      queryClient.invalidateQueries({ queryKey: ["inventory-products", tenantId] })
-      queryClient.invalidateQueries({ queryKey: ["inventory-viewer-products", tenantId] })
-      const consultationIdSafe = consultation!.id
-      const saleId = sale?.id ?? consultationIdSafe
-      workspaceToast.saleRegistered(
-        saleId,
-        totalCents,
-        paymentMethod,
-      )
-      setCart([])
-      setDiscountPercent(0)
-      setSaleNotes("")
-    },
-    onError: (err) => workspaceToast.saleError(err),
-  })
-
   // Hidratar carrito si la consulta ya tiene una venta asociada.
   useEffect(() => {
     if (!consultation) return
-    if (cart.length > 0) return
-    const existingSale = consultation.sales?.[0]
-    if (!existingSale?.items || existingSale.items.length === 0) return
-    setCart(
-      existingSale.items.map((it) => ({
-        key: newCartKey(),
-        kind: it.itemType,
-        itemId: it.itemId,
-        name: it.nameSnapshot,
-        unitPriceCents: toCents((it.priceSnapshot ?? 0) as number),
-        quantity: it.quantity,
-      })),
-    )
+  const existingSale = consultation.sales?.find((sale) => sale.status === "WAITING") ?? consultation.sales?.[0]
+    if (!existingSale) return
+    if (cart.length === 0 && existingSale.items?.length) {
+      setCart(
+        existingSale.items.map((it) => ({
+          key: newCartKey(),
+          kind: it.itemType,
+          itemId: it.itemId,
+          name: it.nameSnapshot,
+          unitPriceCents: toCents((it.priceSnapshot ?? 0) as number),
+          quantity: it.quantity,
+        })),
+      )
+    }
+    if (Number(existingSale.subtotal) > 0) {
+      setDiscountPercent(Number(((Number(existingSale.discount) / Number(existingSale.subtotal)) * 100).toFixed(2)))
+    }
+    setSaleNotes(existingSale.notes ?? "")
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consultation?.id])
 
@@ -300,12 +247,6 @@ export default function VetConsultationDetailPage() {
     workspaceToast.cartCleared()
   }
 
-  // Total monetario en centavos enteros.
-  const totalCents = useMemo(
-    () => computeCartTotal(cart, discountPercent),
-    [cart, discountPercent],
-  )
-
   const historyCount = (petHistoryQuery.data?.consultations ?? []).length
 
   if (consultationQuery.isLoading) {
@@ -342,48 +283,37 @@ export default function VetConsultationDetailPage() {
   const status: "OPEN" | "CLOSED" =
     consultation.status === "CLOSED" ? "CLOSED" : "OPEN"
 
-  const canCheckout = cart.length > 0 && !isClosed && !checkout.isPending
+  const canCheckout = !isClosed && !closeMutation.isPending
 
-  return (
-    <div className="flex flex-col gap-4 pb-32 md:pb-6">
-      <MedicalHeader
-        title="Atencion medica"
-        subtitle={`Consulta #${consultation.id}${
-          consultation.appointmentId
-            ? " - Turno #" + consultation.appointmentId
-            : ""
-        }`}
-        status={status}
-        scheduledLabel={
-          schedule?.scheduledAt
-            ? dateFormatter.format(new Date(schedule.scheduledAt))
-            : undefined
-        }
-        professional={schedule?.professional}
-        totalCents={totalCents}
-        onPrint={
-          consultation.sales && consultation.sales.length > 0
-            ? () => workspaceToast.reprintPending()
-            : undefined
-        }
-        onFinalize={() => setConfirmCloseOpen(true)}
-        finalizing={closeMutation.isPending}
-      />
+      return (
+        <div className="pb-32 md:pb-6">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-stretch">
+            <section className="flex min-w-0 flex-col gap-4">
+              <MedicalHeader
+                title={`Consulta #${consultation.id}`}
+                subtitle={consultation.appointmentId ? `Turno #${consultation.appointmentId}` : undefined}
+                status={status}
+                onPrint={
+                  consultation.sales && consultation.sales.length > 0
+                    ? () => workspaceToast.reprintPending()
+                    : undefined
+                }
+              >
+                <PetClientCard
+                  embedded
+                  petName={petName}
+                  petSpecies={consultation.pet?.species}
+                  petBreed={consultation.pet?.breed}
+                  clientName={clientName}
+                  clientPhone={consultation.client?.phone}
+                  clientDocumentId={consultation.client?.documentId}
+                  historyCount={historyCount}
+                  onViewHistory={() => router.push("/workstation/vet/historial")}
+                />
+              </MedicalHeader>
 
-      <PetClientCard
-        petName={petName}
-        petSpecies={consultation.pet?.species}
-        petBreed={consultation.pet?.breed}
-        clientName={clientName}
-        clientPhone={consultation.client?.phone}
-        clientDocumentId={consultation.client?.documentId}
-        historyCount={historyCount}
-        onViewHistory={() => router.push("/workstation/vet/historial")}
-      />
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <ConsultationTabs
-          consultationId={String(consultation.id)}
+              <ConsultationTabs
+                consultationId={String(consultation.id)}
           form={{
             initialValues: {
               weight: consultation.weight,
@@ -411,9 +341,10 @@ export default function VetConsultationDetailPage() {
           onAddPrescription={async (description) => {
             await addEntry.mutateAsync({ kind: "prescription", description })
           }}
-        />
-
-        <aside className="lg:sticky lg:top-4 lg:self-start">
+              />
+          </section>
+  
+          <aside className="min-w-0 xl:sticky xl:top-4 xl:h-[calc(100dvh-7rem)] xl:min-h-0">
           <CommercePanel
             items={cart}
             onQuantityChange={handleQuantityChange}
@@ -423,17 +354,17 @@ export default function VetConsultationDetailPage() {
             onDiscountChange={setDiscountPercent}
             notes={saleNotes}
             onNotesChange={setSaleNotes}
-            paymentMethod={paymentMethod}
-            onPaymentMethodChange={setPaymentMethod}
             onAddItem={() => setItemDialogOpen(true)}
-            loading={checkout.isPending}
+            loading={closeMutation.isPending}
             canCheckout={canCheckout}
-            onCheckout={() => checkout.mutate()}
+            onCheckout={() => setConfirmCloseOpen(true)}
+            onFinalizeWithoutSale={() => setConfirmCloseOpen(true)}
+            finalizingWithoutSale={closeMutation.isPending}
           />
-        </aside>
-      </div>
-
-      <AddItemDialog
+            </aside>
+        </div>
+  
+        <AddItemDialog
         open={itemDialogOpen}
         onOpenChange={setItemDialogOpen}
         products={(productsQuery.data ?? []) as Product[]}
@@ -441,14 +372,6 @@ export default function VetConsultationDetailPage() {
         loadingProducts={productsQuery.isLoading}
         loadingServices={servicesQuery.isLoading}
         onAdd={handleAddItem}
-      />
-
-      <MobileCheckoutBar
-        totalCents={totalCents}
-        itemsCount={cart.length}
-        loading={checkout.isPending}
-        canCheckout={canCheckout}
-        onCheckout={() => checkout.mutate()}
       />
 
       <Dialog
@@ -462,8 +385,8 @@ export default function VetConsultationDetailPage() {
               {isClosed
                 ? "La consulta ya esta finalizada."
                 : cart.length > 0
-                ? "La atención se finalizará y se registrará la venta con los items cargados."
-                : "La atención se finalizará sin registrar una venta."}
+                  ? "Los items clínicos se guardarán en la cuenta pendiente de esta atención. Recepción podrá cobrarla después."
+                  : "La atención se finalizará y la cuenta de recepción seguirá pendiente de cobro."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

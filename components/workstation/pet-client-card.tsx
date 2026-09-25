@@ -16,6 +16,8 @@ export interface PetClientCardProps {
   clientDocumentId?: string;
   historyCount?: number;
   onViewHistory?: () => void;
+  /** Renderiza solo el contenido para integrarlo dentro de otro card clínico. */
+  embedded?: boolean;
 }
 export function PetClientCard(props: PetClientCardProps) {
   const {
@@ -27,16 +29,16 @@ export function PetClientCard(props: PetClientCardProps) {
     clientPhone,
     clientDocumentId,
     historyCount,
-    onViewHistory,
+      onViewHistory,
+      embedded = false,
   } = props;
 
-  return (
-    <Card size="sm">
-      <CardContent className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+    const content = (
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-1 items-start gap-2 md:items-center">
           <div className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-full">
             <PawPrint className="size-4" aria-hidden />
-          </div>
+      </div>
           <div className="min-w-0 flex-1">
             <div className="text-muted-foreground text-xs">Paciente</div>
             <div className="truncate text-sm font-semibold" title={petName}>
@@ -89,8 +91,13 @@ export function PetClientCard(props: PetClientCardProps) {
             <ChevronRight className="size-3.5" />
           </Button>
         ) : null}
-      </CardContent>
-    </Card>
-  );
-}
+        </div>
+    );
+
+    return embedded ? content : (
+      <Card size="sm">
+        <CardContent>{content}</CardContent>
+      </Card>
+    );
+  }
 

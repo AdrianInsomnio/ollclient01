@@ -1,7 +1,6 @@
 "use client"
 
 import {
-  CreditCard,
   Loader2,
   Minus,
   Package,
@@ -9,7 +8,6 @@ import {
   Receipt,
   ShoppingCart,
   Trash2,
-  Wallet,
 } from "lucide-react"
 
 import {
@@ -36,16 +34,6 @@ import {
   type CartItem,
 } from "@/lib/workstation/commerce-cart"
 
-export type PaymentMethodOption = "CASH" | "DEBIT_CARD" | "CREDIT_CARD" | "BANK_TRANSFER" | "MERCADO_PAGO"
-
-const paymentOptions: { value: PaymentMethodOption; label: string; icon: typeof Wallet }[] = [
-  { value: "CASH", label: "Efectivo", icon: Wallet },
-  { value: "DEBIT_CARD", label: "Debito", icon: CreditCard },
-  { value: "CREDIT_CARD", label: "Credito", icon: CreditCard },
-  { value: "BANK_TRANSFER", label: "Transferencia", icon: CreditCard },
-  { value: "MERCADO_PAGO", label: "MercadoPago", icon: CreditCard },
-]
-
 export interface CommercePanelProps {
   items: readonly CartItem[]
   onQuantityChange: (key: string, quantity: number) => void
@@ -55,14 +43,12 @@ export interface CommercePanelProps {
   onDiscountChange: (percent: number) => void
   notes: string
   onNotesChange: (notes: string) => void
-  paymentMethod: PaymentMethodOption
-  onPaymentMethodChange: (method: PaymentMethodOption) => void
   onAddItem: () => void
   loading?: boolean
-  /** Boton deshabilitado si la consulta esta cerrada o el carrito esta vacio. */
+    /** Botón deshabilitado si la atención ya está cerrada o finalizando. */
   canCheckout: boolean
   onCheckout: () => void
-  /** Callback que ejecuta la accion "Finalizar atencion" (sin venta). */
+    /** Callback que finaliza la atención y deja la cuenta pendiente. */
   onFinalizeWithoutSale?: () => void
   finalizingWithoutSale?: boolean
 }
@@ -77,8 +63,6 @@ export function CommercePanel(props: CommercePanelProps) {
     onDiscountChange,
     notes,
     onNotesChange,
-    paymentMethod,
-    onPaymentMethodChange,
     onAddItem,
     loading = false,
     canCheckout,
@@ -92,17 +76,16 @@ export function CommercePanel(props: CommercePanelProps) {
   const totalCents: Cents = computeCartTotal(items, discountPercent)
 
   return (
-    <Card className="gap-3">
-      <CardHeader className="pb-0">
+      <Card className="gap-3 xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:overflow-hidden">
+        <CardHeader className="pb-0 xl:shrink-0">
         <CardTitle className="flex items-center gap-2 text-base">
           <Receipt className="size-4" /> Resumen de venta
         </CardTitle>
         <p className="text-muted-foreground text-xs">
-          Fuente de verdad comercial: Sale + SaleItem. Independiente
-          de la atencion medica.
+            Cuenta vinculada a esta atención. El cobro queda pendiente para recepción.
         </p>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-col gap-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain">
         <div className="flex items-center justify-between gap-2">
           <span className="text-muted-foreground text-xs">Items</span>
           <Button size="sm" variant="outline" onClick={onAddItem}>
@@ -117,8 +100,7 @@ export function CommercePanel(props: CommercePanelProps) {
             </EmptyMedia>
             <EmptyTitle>Sin items</EmptyTitle>
             <EmptyDescription>
-              Agregue productos o servicios para generar una venta.
-              Puede finalizar la consulta sin venta.
+                Agregue productos o servicios. Al finalizar, se agregarán a la cuenta pendiente de recepción.
             </EmptyDescription>
           </Empty>
         ) : (
@@ -192,7 +174,7 @@ export function CommercePanel(props: CommercePanelProps) {
         <Separator />
 
         <div className="space-y-1.5">
-          <Label htmlFor="discount" className="text-xs">Descuento (%)</Label>
+          <Label htmlFor="discount" className="text-xs">Descuento general (%)</Label>
           <Input
             id="discount"
             type="number"
@@ -232,59 +214,18 @@ export function CommercePanel(props: CommercePanelProps) {
           />
         </dl>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">Metodo de pago</Label>
-          <div className="grid grid-cols-2 gap-1.5">
-            {paymentOptions.map((option) => {
-              const Icon = option.icon
-              const active = paymentMethod === option.value
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => onPaymentMethodChange(option.value)}
-                  className={
-                    "flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors " +
-                    (active
-                      ? "border-primary bg-primary/5 text-foreground"
-                      : "text-muted-foreground hover:text-foreground")
-                  }
-                  aria-pressed={active}
-                >
-                  <Icon className="size-3.5" /> {option.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <Button
-          onClick={onCheckout}
-          disabled={!canCheckout || loading}
-          className="w-full"
-        >
-          {loading ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <CreditCard className="size-3.5" />
-          )}
-          Cobrar venta
-        </Button>
-
-        {onFinalizeWithoutSale ? (
           <Button
-            variant="ghost"
-            size="sm"
-            onClick={onFinalizeWithoutSale}
-            disabled={finalizingWithoutSale || items.length > 0}
+            onClick={onFinalizeWithoutSale ?? onCheckout}
+            disabled={!canCheckout || loading || finalizingWithoutSale}
             className="w-full"
           >
-            {finalizingWithoutSale ? (
+            {loading || finalizingWithoutSale ? (
               <Loader2 className="size-3.5 animate-spin" />
-            ) : null}
-            Finalizar consulta sin venta
+            ) : (
+              <Receipt className="size-3.5" />
+            )}
+            {finalizingWithoutSale ? "Finalizando atención..." : "Finalizar atención"}
           </Button>
-        ) : null}
 
       </CardContent>
     </Card>

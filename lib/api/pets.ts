@@ -36,11 +36,26 @@ export interface CreatePetPayload {
 
 export type UpdatePetPayload = Partial<CreatePetPayload>
 
+export interface PetHistoryActivity {
+  id: number
+  action: string
+  createdAt: string
+  metadata?: unknown
+  consultorioId?: number | null
+}
+
 export interface PetHistoryItem {
+  id?: string | number
   date: string
   type: 'consultation' | 'vaccination' | 'sale' | 'study'
   description: string
   professional?: string
+  diagnosis?: string
+  status?: string
+  serviceType?: string
+  weight?: number | null
+  temperature?: number | null
+  activities?: PetHistoryActivity[]
 }
 
 export interface PetHistory {
@@ -73,7 +88,14 @@ interface PetConsultationHistoryItem {
   createdAt?: string
   updatedAt?: string
   notes?: string | null
+  symptoms?: string | null
   status?: string
+  weight?: number | null
+  temperature?: number | null
+  diagnoses?: Array<{ description: string }>
+  appointment?: { serviceType?: string | null } | null
+  veterinarian?: { id: number; username: string } | null
+  veterinarianActivities?: PetHistoryActivity[]
 }
 
 interface PetConsultationHistoryResponse {
@@ -125,11 +147,22 @@ export async function getPetHistory(id: string | number): Promise<PetHistory> {
     name: '',
     species: '',
     clientId: 0,
-    consultations: response.consultations.map((consultation) => ({
-      date: consultation.createdAt || consultation.updatedAt || new Date().toISOString(),
-      type: 'consultation' as const,
-      description: consultation.notes?.trim() || 'Consulta veterinaria',
-    })),
+    consultations: response.consultations.map((consultation) => {
+      const diagnosis = consultation.diagnoses?.map((item) => item.description).filter(Boolean).join(' · ');
+      return {
+        id: consultation.id,
+        date: consultation.createdAt || consultation.updatedAt || new Date().toISOString(),
+        type: 'consultation' as const,
+        description: consultation.notes?.trim() || consultation.symptoms?.trim() || diagnosis || 'Consulta veterinaria',
+        professional: consultation.veterinarian?.username,
+        diagnosis,
+        status: consultation.status,
+        serviceType: consultation.appointment?.serviceType ?? undefined,
+        weight: consultation.weight,
+        temperature: consultation.temperature,
+        activities: consultation.veterinarianActivities ?? [],
+      };
+    }),
     vaccinations: [],
     sales: [],
     studies: [],

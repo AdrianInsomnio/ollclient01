@@ -55,6 +55,14 @@ export const createCashAdjustment = (id: number, data: { amount: string; reason:
 export const getCashRegisters = () => get<{ success?: boolean; data: CashRegister[] }>("/cash").then((response) => response.data ?? []);
 export const openCashShift = (cashRegisterId: number, openingAmount: string) => post<{ success: boolean; data: CashShift }>(`/cash/${cashRegisterId}/shifts`, { openingAmount }).then((response) => response.data);
 export const getCurrentCashShift = (cashRegisterId: number) => get<{ success: boolean; data: CashShift | null }>(`/cash/${cashRegisterId}/current-shift`).then((response) => response.data);
+export const getMyOpenCashShift = async (): Promise<CashShift | null> => {
+  const registers = await getCashRegisters();
+  for (const register of registers) {
+    const shift = await getCurrentCashShift(register.id);
+    if (shift?.status === "OPEN") return shift;
+  }
+  return null;
+};
 export const getCashShiftMovements = (cashShiftId: number) => get<{ success: boolean; data: CashMovement[] }>(`/cash/shifts/${cashShiftId}/movements`).then((response) => response.data ?? []);
 export const createCashMovement = (cashShiftId: number, data: { type: CashMovementType; amount: string; reason: string; notes?: string }) => post<{ success: boolean; data: CashMovement }>(`/cash/shifts/${cashShiftId}/movements`, data).then((response) => response.data);
 export const closeCashShift = (cashShiftId: number, data: { countedAmount: string; closingNotes?: string; differenceReason?: string }) => post<{ success: boolean; data: CashShift }>(`/cash/shifts/${cashShiftId}/close`, data).then((response) => response.data);

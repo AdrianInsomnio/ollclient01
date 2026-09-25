@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { getClients, type Client } from '@/lib/api/clients'
 import { getPets, type Pet } from '@/lib/api/pets'
 import { openConsultation } from '@/lib/api/consultations'
+import { getMyOpenCashShift } from '@/lib/api/cash'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,6 +25,12 @@ export default function AgregarColaPage() {
     queryFn: () => getClients(),
   })
 
+  const { data: cashShift, isLoading: cashShiftLoading } = useQuery({
+    queryKey: ['my-open-cash-shift'],
+    queryFn: getMyOpenCashShift,
+    staleTime: 30_000,
+  })
+
   const { data: pets } = useQuery({
     queryKey: ['pets', selectedClient?.id],
     queryFn: () => selectedClient ? getPets() : Promise.resolve([]),
@@ -39,13 +46,17 @@ export default function AgregarColaPage() {
 
   const openMutation = useMutation({
     mutationFn: () => {
-      if (!selectedClient || !selectedPet) {
-        throw new Error('Selecciona cliente y mascota')
-      }
+        if (!selectedClient || !selectedPet) {
+          throw new Error('Selecciona cliente y mascota')
+        }
+        if (!cashShift) {
+          throw new Error('Abre un turno de caja antes de iniciar la atención para crear su cuenta en espera.')
+        }
 
       return openConsultation({
-        clientId: Number(selectedClient.id),
-        petId: Number(selectedPet.id),
+          clientId: Number(selectedClient.id),
+          petId: Number(selectedPet.id),
+          cashShiftId: cashShift.id,
       })
     },
     onSuccess: (consultation) => {
@@ -143,11 +154,14 @@ export default function AgregarColaPage() {
               <p><span className='font-medium'>Cliente:</span> {selectedClient.name}</p>
               <p><span className='font-medium'>Mascota:</span> {selectedPet.name} ({selectedPet.species})</p>
             </div>
-            {error && <p className='text-sm text-red-600'>{error}</p>}
-            <div className='flex gap-4'>
+              {error && <p className='text-sm text-red-600'>{error}</p>}
+              {!cashShiftLoading && !cashShift && (
+                <p className='rounded-md bg-amber-50 p-3 text-sm text-amber-800'>Abre un turno de caja para crear la cuenta en espera de esta atención.</p>
+              )}
+              <div className='flex gap-4'>
               <Button variant='outline' onClick={() => setSelectedPet(null)} className='flex-1'>Atras</Button>
-              <Button onClick={handleOpenConsultation} disabled={openMutation.isPending} className='flex-1'>
-                {openMutation.isPending ? 'Abriendo...' : 'Abrir Consulta'}
+                <Button onClick={handleOpenConsultation} disabled={openMutation.isPending || cashShiftLoading || !cashShift} className='flex-1'>
+                  {openMutation.isPending ? 'Abriendo...' : 'Iniciar atención y cuenta'}
               </Button>
             </div>
           </CardContent>

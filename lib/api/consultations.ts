@@ -24,9 +24,14 @@ export interface Consultation {
     name: string;
     species: string;
     breed?: string;
+    sex?: string | null;
+    birthDate?: string | null;
+    weight?: number | null;
   };
   vetId?: string;
   veterinarianId?: number | null;
+  veterinarian?: { id: number; username: string } | null;
+  veterinarianActivities?: Array<{ id: number; action: string; createdAt: string; metadata?: unknown; consultorioId?: number | null }>;
   historyStartedAt?: string | null;
   historyEndedAt?: string | null;
   historyConsultorioName?: string | null;
@@ -75,13 +80,14 @@ export interface Sale {
   discount: number;
   tax: number;
   total: number;
-  paymentMethod: string;
+    paymentMethod?: string;
   items: ConsultationItem[];
 }
 
 export interface CreateConsultationPayload {
   clientId: string | number;
   petId: string | number;
+  cashShiftId?: string | number;
   appointmentId?: string | number;
   priority?: Consultation["priority"];
   notes?: string;
@@ -191,6 +197,11 @@ export async function getOpenConsultations(): Promise<Consultation[]> {
   return response.consultations;
 }
 
+export async function startConsultation(id: string | number): Promise<Consultation> {
+  const response = await post<ConsultationResponse>(`/consultations/${id}/start`, {});
+  return response.consultation;
+}
+
 export type VeterinarianAvailability = {
   id: number;
   username: string;
@@ -258,6 +269,7 @@ export async function openConsultation(
       ...data,
       clientId: Number(data.clientId),
       petId: Number(data.petId),
+      ...(data.cashShiftId !== undefined ? { cashShiftId: Number(data.cashShiftId) } : {}),
     },
   );
   return "consultation" in response && response.consultation

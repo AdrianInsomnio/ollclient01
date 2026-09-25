@@ -24,6 +24,7 @@ import { getClients, createClient, searchClients } from "@/lib/api/clients"
 import { getAppointments, type Appointment } from "@/lib/api/appointments"
 import { getPets, createPet, searchPets } from "@/lib/api/pets"
 import { openConsultation } from "@/lib/api/consultations"
+import { getMyOpenCashShift } from "@/lib/api/cash"
 import { toast } from "sonner"
 
 interface Pet {
@@ -107,6 +108,12 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
     motivo: "",
   })
 
+  const requireOpenCashShift = async () => {
+    const shift = await getMyOpenCashShift()
+    if (!shift) throw new Error("Abre un turno de caja antes de iniciar la atención.")
+    return shift.id
+  }
+
   const loadScheduledAppointments = async () => {
     setIsLoadingScheduled(true)
     try {
@@ -152,12 +159,14 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
   const handleScheduledAppointment = async (appointment: Appointment) => {
     setIsSubmitting(true)
     try {
+      const cashShiftId = await requireOpenCashShift()
       await openConsultation({
         clientId: appointment.clientId,
         petId: appointment.petId,
         appointmentId: appointment.id,
         priority: "SCHEDULED",
         notes: appointment.notes || undefined,
+        cashShiftId,
       })
       toast.success("Cita agregada a la cola como programada")
       setScheduledAppointments((current) => current.filter((item) => item.id !== appointment.id))
@@ -298,21 +307,23 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
       return
     }
 
-    setIsSubmitting(true)
-    try {
-      // FIX: Use clientId from selectedPatient, not pet ID
-      await openConsultation({
+      setIsSubmitting(true)
+      try {
+        const cashShiftId = await requireOpenCashShift()
+        // FIX: Use clientId from selectedPatient, not pet ID
+        await openConsultation({
         clientId: Number(selectedPatient.clientId),
-        petId: selectedPatient.id,
-        notes: newPatientData.motivo || undefined,
+          petId: selectedPatient.id,
+          notes: newPatientData.motivo || undefined,
+          cashShiftId,
       })
 
       toast.success("Paciente agregado a la cola")
       setOpen(false)
       onSuccess?.()
-    } catch (error) {
-      console.error("Error adding to queue:", error)
-      toast.error("Error al agregar a la cola")
+      } catch (error) {
+        console.error("Error adding to queue:", error)
+        toast.error(error instanceof Error ? error.message : "Error al agregar a la cola")
     } finally {
       setIsSubmitting(false)
     }
@@ -326,6 +337,7 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
 
     setIsSubmitting(true)
     try {
+      const cashShiftId = await requireOpenCashShift()
       // Crear cliente
       const existingClients = await getClients()
       const client = existingClients.find(c => c.phone === newPatientData.clientPhone)
@@ -354,18 +366,19 @@ export function AgregarAColaModal({ onSuccess }: AgregarAColaModalProps) {
       })
 
       // Abrir consulta
-      await openConsultation({
-        clientId: Number(clientId),
-        petId: newPet.id,
-        notes: newPatientData.motivo || undefined,
+        await openConsultation({
+          clientId: Number(clientId),
+          petId: newPet.id,
+          notes: newPatientData.motivo || undefined,
+          cashShiftId,
       })
 
       toast.success("Nuevo paciente creado y agregado a la cola")
       setOpen(false)
       onSuccess?.()
-    } catch (error) {
-      console.error("Error creating new patient:", error)
-      toast.error("Error al crear el paciente")
+      } catch (error) {
+        console.error("Error creating new patient:", error)
+        toast.error(error instanceof Error ? error.message : "Error al crear el paciente")
     } finally {
       setIsSubmitting(false)
     }
