@@ -94,8 +94,9 @@ export async function adjustProductStock(id: number, data: { quantity: number; r
   return post<{ message: string; newStock: number }>(`/products/${id}/stock-adjustment`, data)
 }
 
-export async function getProductStockMovements(id: number) {
-  const response = await get<{ movements: StockMovement[] }>(`/products/${id}/movements`)
+export async function getProductStockMovements(id: number, limit?: number) {
+  const query = limit ? `?limit=${limit}` : ''
+  const response = await get<{ movements: StockMovement[] }>(`/products/${id}/movements${query}`)
   return response.movements ?? []
 }
 
