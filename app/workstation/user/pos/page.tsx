@@ -1646,7 +1646,7 @@ export default function PosPage() {
                       <div className="space-y-2">
                         {cart.map((entry) => (
                           <div
-                            key={`${entry.itemType}-${entry.item.id}`}
+                            key={`${entry.itemType}-${entry.item.id}-${entry.unitPrice ?? "base"}`}
                             className="rounded-xl border border-slate-100 bg-slate-50/70 p-2"
                           >
                             <div className="flex gap-2">
