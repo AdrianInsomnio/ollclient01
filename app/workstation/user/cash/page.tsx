@@ -456,7 +456,7 @@ export default function UserCashPage() {
         </>
       )}
       <MovementDialog
-        key={movementOpen ?? "closed"}
+          key={movementOpen ? `movement-${movementOpen}` : "movement-closed"}
         type={movementOpen}
         open={!!movementOpen}
         onOpenChange={(open) => !open && setMovementOpen(null)}
@@ -464,7 +464,7 @@ export default function UserCashPage() {
         saving={saving}
       />
       <CloseDialog
-        key={closeOpen ? "open" : "closed"}
+          key={closeOpen ? "close-open" : "close-closed"}
         open={closeOpen}
         onOpenChange={setCloseOpen}
         expected={expected}
