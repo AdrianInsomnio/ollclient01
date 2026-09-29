@@ -26,3 +26,6 @@ export const createPrintingTemplate = (data: Pick<PrintTemplate, "templateKey" |
 
 export const createPrintingTemplateVersion = (data: Omit<PrintTemplateVersion, "id" | "createdAt"> & { templateId: number }) =>
   post<PrintTemplateVersion>("/printing/templates/versions", data)
+
+export const createPrintingAsset = (data: Pick<PrintAsset, "name" | "storageKey" | "mimeType" | "width" | "height">) =>
+  post<PrintAsset>("/printing/assets", data)

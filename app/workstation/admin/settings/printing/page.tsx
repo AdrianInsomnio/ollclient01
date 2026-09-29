@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ApiError } from "@/lib/api-client"
-import { createPrintingTemplate, createPrintingTemplateVersion, getPrintingPrinters, getPrintingTargets, getPrintingTemplates, type PrintPaperSize, type PrintTarget, type PrintTemplate } from "@/lib/api/printing"
+import { createPrintingAsset, createPrintingTemplate, createPrintingTemplateVersion, getPrintingAssets, getPrintingPrinters, getPrintingTargets, getPrintingTemplates, type PrintAsset, type PrintPaperSize, type PrintTarget, type PrintTemplate } from "@/lib/api/printing"
 
 const sampleItems = [
   { name: "Consulta clínica", quantity: 1, total: 850 },
@@ -23,6 +23,7 @@ export default function PrintingSettingsPage() {
   const [templates, setTemplates] = useState<PrintTemplate[]>([])
   const [targets, setTargets] = useState<PrintTarget[]>([])
   const [printers, setPrinters] = useState<Array<{ id: number; name: string; paperSize: string; status: string }>>([])
+  const [assets, setAssets] = useState<PrintAsset[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -35,10 +36,11 @@ export default function PrintingSettingsPage() {
     setLoading(true)
     setError(null)
     try {
-      const [templateData, targetData, printerData] = await Promise.all([getPrintingTemplates(), getPrintingTargets(), getPrintingPrinters()])
+      const [templateData, targetData, printerData, assetData] = await Promise.all([getPrintingTemplates(), getPrintingTargets(), getPrintingPrinters(), getPrintingAssets()])
       setTemplates(templateData)
       setTargets(targetData)
       setPrinters(printerData)
+      setAssets(assetData)
       if (templateData[0]) {
         setSelectedId(templateData[0].id)
         setEditor({ name: templateData[0].name, templateKey: templateData[0].templateKey, documentType: templateData[0].documentType, paperSize: templateData[0].versions?.[0]?.paperSize ?? "THERMAL_80" })
@@ -64,6 +66,17 @@ export default function PrintingSettingsPage() {
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "No se pudo crear el template") }
   }
 
+  async function createAsset(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    try {
+      await createPrintingAsset({ name: String(form.get("assetName") || ""), storageKey: String(form.get("storageKey") || ""), mimeType: "image/png", width: null, height: null })
+      toast.success("Asset registrado")
+      event.currentTarget.reset()
+      await load()
+    } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "No se pudo registrar el asset") }
+  }
+
   return <div className="space-y-5 pb-8">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><p className="text-xs text-muted-foreground">Configuración / Impresión</p><h2 className="mt-1 text-2xl font-semibold tracking-tight">Printing Core</h2><p className="mt-1 text-sm text-muted-foreground">Templates, destinos y preview local para documentos de impresión.</p></div>
@@ -76,13 +89,14 @@ export default function PrintingSettingsPage() {
     </div>
     {error && <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"><AlertCircle className="size-4" />{error}. Puedes seguir usando el preview local.</div>}
     <Tabs defaultValue="templates" className="space-y-4">
-      <TabsList><TabsTrigger value="templates">Templates</TabsTrigger><TabsTrigger value="targets">Destinos e impresoras</TabsTrigger></TabsList>
+      <TabsList><TabsTrigger value="templates">Templates</TabsTrigger><TabsTrigger value="targets">Destinos e impresoras</TabsTrigger><TabsTrigger value="assets">Assets y logo</TabsTrigger></TabsList>
       <TabsContent value="templates" className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
         <Card><CardHeader><CardTitle>Templates</CardTitle><CardDescription>Versiones por documento y papel.</CardDescription></CardHeader><CardContent className="space-y-2">
           {loading ? <p className="text-sm text-muted-foreground">Cargando...</p> : templates.length === 0 ? <p className="text-sm text-muted-foreground">Todavía no hay templates. Crea el primero desde el editor.</p> : templates.map((template) => <button key={template.id} onClick={() => selectTemplate(template)} className={`w-full rounded-lg border p-3 text-left transition-colors ${selectedId === template.id ? "border-primary bg-primary/5" : "hover:bg-muted/60"}`}><div className="flex items-center justify-between gap-2"><span className="font-medium">{template.name}</span><Badge variant={template.isActive ? "success" : "neutral"}>{template.isActive ? "Activo" : "Inactivo"}</Badge></div><p className="mt-1 text-xs text-muted-foreground">{template.documentType} · {template.versions?.length ?? 0} versión(es)</p></button>)}</CardContent></Card>
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]"><Card><CardHeader><CardTitle>Editor base</CardTitle><CardDescription>Los cambios se mantienen en estado local hasta guardar.</CardDescription></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2"><Field label="Nombre"><Input value={editor.name} onChange={(event) => setEditor({ ...editor, name: event.target.value })} /></Field><Field label="Clave"><Input value={editor.templateKey} onChange={(event) => setEditor({ ...editor, templateKey: event.target.value })} /></Field><Field label="Tipo de documento"><Input value={editor.documentType} onChange={(event) => setEditor({ ...editor, documentType: event.target.value })} /></Field><Field label="Papel"><select className="h-9 rounded-md border bg-background px-3 text-sm" value={editor.paperSize} onChange={(event) => setEditor({ ...editor, paperSize: event.target.value as PrintPaperSize })}><option value="THERMAL_58">Térmico 58 mm</option><option value="THERMAL_80">Térmico 80 mm</option><option value="A4">A4</option><option value="LETTER">Carta</option></select></Field><div className="sm:col-span-2 flex justify-end"><Button disabled={Boolean(selected)} onClick={() => void createTemplate()}><Save className="size-4" />{selected ? "Edición de versión pendiente" : "Crear template"}</Button></div></CardContent></Card><ReceiptPreview editor={editor} activeVersion={activeVersion} /></div>
       </TabsContent>
       <TabsContent value="targets"><div className="grid gap-4 md:grid-cols-2">{targets.map((target) => <Card key={target.id}><CardHeader><div className="flex items-center justify-between"><CardTitle>{target.name}</CardTitle><Badge variant={target.printer ? "success" : "warning"}>{target.printer ? "Asignado" : "Sin impresora"}</Badge></div><CardDescription>{target.code}</CardDescription></CardHeader><CardContent className="text-sm text-muted-foreground">{target.location?.name ?? "Sin ubicación"} · {target.printer?.name ?? "Configura una impresora"}</CardContent></Card>)}{targets.length === 0 && <Card><CardContent className="pt-6 text-sm text-muted-foreground">No hay Print Targets configurados.</CardContent></Card>}</div><p className="mt-4 text-xs text-muted-foreground">Impresoras detectadas en el backend: {printers.length}. La administración de destinos e impresoras se completará en la siguiente iteración.</p></TabsContent>
+      <TabsContent value="assets" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]"><Card><CardHeader><CardTitle>Assets registrados</CardTitle><CardDescription>El template referencia el asset por clave; la imagen no se guarda dentro del JSON.</CardDescription></CardHeader><CardContent className="space-y-2">{assets.length === 0 ? <p className="text-sm text-muted-foreground">No hay assets registrados.</p> : assets.map((asset) => <div key={asset.id} className="flex items-center justify-between rounded-lg border px-3 py-2"><div><p className="font-medium">{asset.name}</p><p className="text-xs text-muted-foreground">{asset.storageKey} · {asset.mimeType}</p></div><Badge variant="neutral">#{asset.id}</Badge></div>)}</CardContent></Card><Card><CardHeader><CardTitle>Registrar asset</CardTitle><CardDescription>El almacenamiento físico se resuelve fuera del template.</CardDescription></CardHeader><CardContent><form className="grid gap-4" onSubmit={createAsset}><Field label="Nombre"><Input name="assetName" placeholder="Logo principal" required /></Field><Field label="Storage key"><Input name="storageKey" placeholder="business/logo-main.png" required /></Field><Button type="submit"><Save className="size-4" />Registrar asset</Button></form></CardContent></Card></TabsContent>
     </Tabs>
   </div>
 }
