@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Bell, Boxes, CalendarClock, DoorOpen, History, Package, Receipt, Settings2, Users } from 'lucide-react'
+import { Bell, Boxes, CalendarClock, DoorOpen, History, Package, Printer, Receipt, Settings2, Users } from 'lucide-react'
 
 const items = [
   { label: 'General', icon: Settings2, href: '/workstation/admin/settings/general' },
   { label: 'Usuarios y permisos', icon: Users, href: '/workstation/admin/settings/users' },
   { label: 'Inventario clínico', icon: Package, href: '/workstation/admin/settings/inventory/categories' },
   { label: 'Ventas / Cajas POS', icon: Boxes, href: '/workstation/admin/settings/pos' },
+  { label: 'Impresión', icon: Printer, href: '/workstation/admin/settings/printing' },
   { label: 'Boxes / Consultorios', icon: DoorOpen, href: '/workstation/admin/settings/consultorios' },
   { label: 'Agenda y citas', icon: CalendarClock, href: '/workstation/admin/settings/agenda' },
   { label: 'Notificaciones', icon: Bell, disabled: true },
