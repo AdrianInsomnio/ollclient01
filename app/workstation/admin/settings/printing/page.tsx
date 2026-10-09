@@ -189,17 +189,23 @@ export default function PrintingSettingsPage() {
 
   async function createTemplate() {
     try {
-      const created = await createPrintingTemplate({ templateKey: editor.templateKey, name: editor.name, documentType: editor.documentType })
+      const templateKey = editor.templateKey.trim()
+      const latestTemplates = await getPrintingTemplates()
+      setTemplates(latestTemplates)
+      const existing = latestTemplates.find((template) => template.templateKey === templateKey)
+      const created = existing ?? await createPrintingTemplate({ templateKey, name: editor.name, documentType: editor.documentType })
+      const nextVersion = Math.max(0, ...(existing?.versions ?? []).map((version) => version.version)) + 1
       await createPrintingTemplateVersion({ 
         templateId: created.id, 
-        version: 1, 
+        version: nextVersion,
         status: "DRAFT", 
         paperType: editor.paperSize.startsWith("THERMAL") ? "THERMAL" : "SHEET", 
         paperSize: editor.paperSize, 
         orientation: "PORTRAIT", 
         definition: editor.definition 
       })
-      toast.success("Template creado con éxito")
+      setSelectedId(created.id)
+      toast.success(existing ? `Se guardó la versión ${nextVersion} de la plantilla existente` : "Template creado con éxito")
       await load()
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "No se pudo crear el template") }
   }

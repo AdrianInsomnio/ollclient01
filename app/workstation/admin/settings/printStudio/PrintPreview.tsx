@@ -114,7 +114,7 @@ export const PrintPreview: React.FC = () => {
       <div className="mb-4 text-sm text-gray-500 font-mono">
         Vista previa local · {template.pageSize} ({config.chars} caracteres)
       </div>
-      <div className="w-full max-w-full rounded-md border bg-background p-8 shadow-sm" style={{ width: `${config.px}px`, minHeight: '600px' }}>
+      <div className="w-full rounded-md border bg-background p-8 shadow-sm" style={{ width: `${config.px + 80}px`, minHeight: '600px' }}>
         <pre className="text-black leading-tight whitespace-pre-wrap break-words" style={{ fontFamily: '"Courier New", Courier, monospace', fontSize: '14px' }}>
           {renderedContent || 'Añade bloques para comenzar a diseñar…'}
         </pre>
