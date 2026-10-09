@@ -1,9 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { toast } from 'sonner'
-import { Activity, Bell, Boxes, CalendarClock, DoorOpen, History, Package, Pencil, Receipt, Save, Settings2, Users, X, Printer } from 'lucide-react'
+import { Activity, Boxes, Pencil, Save, X } from 'lucide-react'
 import { ApiError } from '@/lib/api-client'
 import { getClinicSettings, updateClinicSettings, type ClinicSettings } from '@/lib/api/admin'
 import { Badge } from '@/components/ui/badge'
@@ -27,19 +26,6 @@ type ClinicForm = {
 }
 
 const EMPTY_FORM: ClinicForm = { name: '', rut: '', website: '', address: '', phone: '', email: '', timezone: 'America/Montevideo' }
-
-const settingsNavigation = [
-  { label: 'General', icon: Settings2, href: '/workstation/admin/settings/general', active: true },
-  { label: 'Usuarios y permisos', icon: Users, href: '/workstation/admin/settings/users' },
-  { label: 'Inventario clínico', icon: Package, href: '/workstation/admin/settings/inventory/categories' },
-  { label: 'Ventas / Cajas POS', icon: Boxes, href: '/workstation/admin/settings/pos' },
-  { label: 'Boxes / Consultorios', icon: DoorOpen, href: '/workstation/admin/settings/consultorios' },
-  { label: 'Agenda y citas', icon: CalendarClock, href: '/workstation/admin/settings/agenda' },
-  { label: 'Sistemas de Impresión', icon: Printer, href: '/workstation/admin/settings/printStudio' },
-  { label: 'Notificaciones', icon: Bell, disabled: true },
-  { label: 'Facturacin electrónica', icon: Receipt, disabled: true },
-  { label: 'Sistema y auditoría', icon: History, disabled: true },
-]
 
 function toForm(clinic: ClinicSettings): ClinicForm {
   return { name: clinic.name ?? '', rut: clinic.rut ?? '', website: clinic.website ?? '', address: clinic.address ?? '', phone: clinic.phone ?? '', email: clinic.email ?? '', timezone: clinic.timezone ?? 'America/Montevideo' }
@@ -132,11 +118,7 @@ export default function AdminSettingsPage() {
         {pageError && <div className='mb-5 flex items-center justify-between gap-4 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive'><span>{pageError}</span><Button variant='outline' size='sm' onClick={() => void loadSettings()}>Reintentar</Button></div>}
         <div className='mb-5 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4'><Activity className='mt-0.5 size-5 shrink-0 text-primary' /><div><p className='font-medium'>Aislamiento activo: {clinic?.name || 'Cargando clínica...'}</p><p className='mt-1 text-sm text-muted-foreground'>La configuración pertenece exclusivamente a esta clínica. Los cambios no afectan a otras clínicas u organizaciones.{clinic?.id ? ` Clínica #${clinic.id}.` : ''}</p></div></div>
 
-        <div className='grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]'>
-          <nav aria-label='Configuración interna' className='h-fit rounded-xl border bg-card p-2 lg:sticky lg:top-0'>
-            {settingsNavigation.map((item) => { const Icon = item.icon; return item.disabled ? <div key={item.label} className='flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground/50'><Icon className='size-4' /><span className='flex-1'>{item.label}</span><span className='text-[10px] uppercase'>Prximamente</span></div> : <Link key={item.label} href={item.href!} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${item.active ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}><Icon className='size-4' /><span>{item.label}</span></Link> })}
-          </nav>
-
+        <div className='grid gap-5'>
           <div className='space-y-5'>
             <Card><CardHeader><CardTitle>Identidad de la Clínica</CardTitle><CardDescription>Información pública utilizada en documentos, recetas, presupuestos y comunicaciones.</CardDescription></CardHeader><CardContent className='grid gap-5 sm:grid-cols-2'>
               <div className='space-y-2'><Label htmlFor='clinic-name'>Nombre comercial</Label><Input id='clinic-name' value={form.name} onChange={(event) => updateField('name', event.target.value)} disabled={loading || saving} placeholder='Nombre de la clínica' /></div>
