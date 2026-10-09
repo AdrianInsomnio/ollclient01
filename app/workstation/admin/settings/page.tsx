@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Activity, Bell, Boxes, CalendarClock, DoorOpen, History, Package, Pencil, Receipt, Save, Settings2, Users, X } from 'lucide-react'
+import { Activity, Bell, Boxes, CalendarClock, DoorOpen, History, Package, Pencil, Receipt, Save, Settings2, Users, X, Printer } from 'lucide-react'
 import { ApiError } from '@/lib/api-client'
 import { getClinicSettings, updateClinicSettings, type ClinicSettings } from '@/lib/api/admin'
 import { Badge } from '@/components/ui/badge'
@@ -35,6 +35,7 @@ const settingsNavigation = [
   { label: 'Ventas / Cajas POS', icon: Boxes, href: '/workstation/admin/settings/pos' },
   { label: 'Boxes / Consultorios', icon: DoorOpen, href: '/workstation/admin/settings/consultorios' },
   { label: 'Agenda y citas', icon: CalendarClock, href: '/workstation/admin/settings/agenda' },
+  { label: 'Sistemas de Impresión', icon: Printer, href: '/workstation/admin/settings/printStudio' },
   { label: 'Notificaciones', icon: Bell, disabled: true },
   { label: 'Facturacin electrónica', icon: Receipt, disabled: true },
   { label: 'Sistema y auditoría', icon: History, disabled: true },
