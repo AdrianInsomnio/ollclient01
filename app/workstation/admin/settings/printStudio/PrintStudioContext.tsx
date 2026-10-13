@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { PrintElement, PrintElementType } from '@/lib/printing/design-system';
+import { PrintElement, PrintElementType, PrintSection } from '@/lib/printing/design-system';
 import * as PrintingAPI from '@/lib/api/printing';
 import type { PrintTemplate } from '@/lib/api/printing';
 import { toast } from 'sonner';
@@ -29,11 +29,14 @@ interface PrintStudioContextType {
   setTemplate: React.Dispatch<React.SetStateAction<PrintTemplateState>>;
   templates: PrintTemplate[];
   loading: boolean;
+  isReadOnly: boolean;
+  enableEditing: () => void;
   updateBlock: (id: string, updates: Partial<PrintElement>) => void;
   updateElementInGroup: (groupId: string, elementId: string, updates: Partial<PrintElement>) => void;
   addElementToGroup: (groupId: string, type: PrintElementType, alignment: 'left' | 'right') => void;
   removeElementFromGroup: (groupId: string, elementId: string) => void;
-  addBlock: (type: PrintElementType) => void;
+  addBlock: (type: PrintElementType, section?: PrintSection) => void;
+  setBlockSection: (id: string, section: PrintSection) => void;
   removeBlock: (id: string) => void;
   moveBlock: (fromIndex: number, toIndex: number) => void;
   saveTemplate: () => Promise<void>;
@@ -45,6 +48,42 @@ interface PrintStudioContextType {
 }
 
 const PrintStudioContext = createContext<PrintStudioContextType | undefined>(undefined);
+
+const SECTION_ORDER: Record<PrintSection, number> = { HEADER: 0, DETAIL: 1, FOOTER: 2 };
+const DEFAULT_SECTION_BY_TYPE: Record<PrintElementType, PrintSection> = {
+  HEADER: 'HEADER', LOGO: 'HEADER', QR: 'HEADER', BARCODE: 'HEADER',
+  ITEM_LIST: 'DETAIL', COLUMN_GROUP: 'DETAIL',
+  TEXT: 'DETAIL', SEPARATOR: 'DETAIL', SPACER: 'DETAIL', TOTALS: 'FOOTER', PAYMENTS: 'FOOTER',
+};
+
+const isSectionAllowed = (type: PrintElementType, section: PrintSection) => {
+  if (type === 'HEADER' || type === 'LOGO' || type === 'QR' || type === 'BARCODE') return section === 'HEADER';
+    if (type === 'ITEM_LIST') return section === 'DETAIL';
+    if (type === 'COLUMN_GROUP') return true;
+  if (type === 'TOTALS' || type === 'PAYMENTS') return section === 'FOOTER';
+  return true;
+};
+
+function normalizePrintLayout(elements: PrintElement[]): PrintElement[] {
+  const normalized = elements.map(element => ({
+    ...element,
+    section: element.section && isSectionAllowed(element.type, element.section)
+      ? element.section
+      : ['TEXT', 'SEPARATOR', 'SPACER'].includes(element.type)
+        ? undefined
+        : DEFAULT_SECTION_BY_TYPE[element.type],
+  }));
+
+  return normalized
+    .map((element, index) => {
+      if (element.section) return element;
+      const previous = normalized.slice(0, index).reverse().find(candidate => candidate.section)?.section;
+      const next = normalized.slice(index + 1).find(candidate => candidate.section)?.section;
+      const inferred = previous && previous === next ? previous : previous || next || 'DETAIL';
+      return { ...element, section: inferred };
+    })
+    .sort((a, b) => SECTION_ORDER[a.section!] - SECTION_ORDER[b.section!]);
+}
 
 let printElementIdSequence = 0;
 const createPrintElementId = () => globalThis.crypto?.randomUUID?.() || `print-element-${Date.now()}-${++printElementIdSequence}`;
@@ -63,7 +102,7 @@ function normalizeElementIds(elements: unknown): PrintElement[] {
       ...(Array.isArray(element.children) ? { children: element.children.map(normalize) } : {}),
     } as PrintElement;
   };
-  return Array.isArray(elements) ? elements.map(normalize) : [];
+  return normalizePrintLayout(Array.isArray(elements) ? elements.map(normalize) : []);
 }
 
 export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
@@ -77,6 +116,8 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
   });
   const [templates, setTemplates] = useState<PrintTemplate[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const isReadOnly = template.id !== 'new' && editingTemplateId !== template.id;
 
   const refreshTemplates = async () => {
     setLoading(true);
@@ -93,6 +134,7 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => { refreshTemplates(); }, []);
 
   const saveTemplate = async () => {
+    if (isReadOnly) return;
     setLoading(true);
     try {
       let templateId = Number(template.id);
@@ -120,6 +162,7 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
       });
 
       setTemplate(prev => ({ ...prev, versionId: createdVersion.id, version: createdVersion.version, status: createdVersion.status }));
+      setEditingTemplateId(String(templateId));
       await refreshTemplates();
       toast.success(`Versión ${createdVersion.version} guardada como borrador`);
     } catch (error) {
@@ -135,12 +178,12 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const loadTemplate = async (id: string) => {
-    setLoading(true);
     try {
       const templatesList = await PrintingAPI.getPrintingTemplates();
       setTemplates(templatesList);
       const found = templatesList.find(t => String(t.id) === id);
       if (found) {
+        setEditingTemplateId(null);
         const version = [...(found.versions || [])].sort((a, b) => b.version - a.version)[0];
         const definition = version?.definition as { elements?: PrintElement[]; layout?: PrintElement[] } | undefined;
         setTemplate({
@@ -157,8 +200,6 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Error loading template", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -178,6 +219,7 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
         documentType: cloned.documentType, pageSize: sourceVersion?.paperSize as PaperSize || 'THERMAL_80',
         layout: [], status: 'DRAFT',
       });
+      setEditingTemplateId(null);
       const definition = sourceVersion?.definition as { elements?: PrintElement[]; layout?: PrintElement[]; globalSettings?: Record<string, unknown> } | undefined;
       const version = await PrintingAPI.createPrintingTemplateVersion({
         templateId: cloned.id,
@@ -234,6 +276,7 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateBlock = (id: string, updates: Partial<PrintElement>) => {
+    if (isReadOnly) return;
     setTemplate(prev => ({
       ...prev,
       layout: prev.layout.map(block => block.id === id ? { ...block, ...updates } : block)
@@ -241,6 +284,7 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateElementInGroup = (groupId: string, elementId: string, updates: Partial<PrintElement>) => {
+    if (isReadOnly) return;
     setTemplate(prev => ({
       ...prev,
       layout: prev.layout.map(block => {
@@ -256,6 +300,7 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addElementToGroup = (groupId: string, type: PrintElementType, alignment: 'left' | 'right') => {
+    if (isReadOnly) return;
     setTemplate(prev => ({
       ...prev,
       layout: prev.layout.map(block => {
@@ -275,6 +320,7 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const removeElementFromGroup = (groupId: string, elementId: string) => {
+    if (isReadOnly) return;
     setTemplate(prev => ({
       ...prev,
       layout: prev.layout.map(block => {
@@ -286,24 +332,41 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
-  const addBlock = (type: PrintElementType) => {
+  const addBlock = (type: PrintElementType, requestedSection = DEFAULT_SECTION_BY_TYPE[type]) => {
+    if (isReadOnly) return;
+    const section = isSectionAllowed(type, requestedSection) ? requestedSection : DEFAULT_SECTION_BY_TYPE[type];
     const newBlock: PrintElement = {
       id: createPrintElementId(),
       type,
+      section,
       properties: { alignment: 'left' },
       ...(type === 'COLUMN_GROUP' && { children: [] }),
       ...(type === 'ITEM_LIST' && { fieldKey: 'items[].name' }), 
       ...(type === 'TOTALS' && { fieldKey: 'totals.total' }),
     };
-    setTemplate(prev => ({ ...prev, layout: [...prev.layout, newBlock] }));
+    setTemplate(prev => ({ ...prev, layout: normalizePrintLayout([...prev.layout, newBlock]) }));
+  };
+
+  const setBlockSection = (id: string, section: PrintSection) => {
+    if (isReadOnly) return;
+    setTemplate(prev => ({
+      ...prev,
+      layout: normalizePrintLayout(prev.layout.map(block =>
+        block.id === id && isSectionAllowed(block.type, section) ? { ...block, section } : block
+      )),
+    }));
   };
 
   const removeBlock = (id: string) => {
+    if (isReadOnly) return;
     setTemplate(prev => ({ ...prev, layout: prev.layout.filter(b => b.id !== id) }));
   };
 
   const moveBlock = (fromIndex: number, toIndex: number) => {
+    if (isReadOnly) return;
     setTemplate(prev => {
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= prev.layout.length || toIndex >= prev.layout.length) return prev;
+      if (prev.layout[fromIndex].section !== prev.layout[toIndex].section) return prev;
       const newLayout = [...prev.layout];
       const [movedItem] = newLayout.splice(fromIndex, 1);
       newLayout.splice(toIndex, 0, movedItem);
@@ -313,7 +376,7 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <PrintStudioContext.Provider value={{ 
-        template, setTemplate, templates, loading, updateBlock, updateElementInGroup, addElementToGroup, removeElementFromGroup, addBlock, removeBlock, moveBlock,
+        template, setTemplate, templates, loading, isReadOnly, enableEditing: () => setEditingTemplateId(template.id), updateBlock, updateElementInGroup, addElementToGroup, removeElementFromGroup, addBlock, setBlockSection, removeBlock, moveBlock,
       saveTemplate, loadTemplate, cloneTemplate, activateTemplate, deleteDraftTemplateVersion, refreshTemplates
     }}>
       {children}

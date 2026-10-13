@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
 import Sidebar from '@/components/navigation/sidebar-shadcn'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
@@ -13,6 +13,8 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const pathname = usePathname()
+  const isPrintStudio = pathname === '/workstation/admin/print-studio'
   const { user, isAuthenticated, checking } = useAuthStore()
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export default function AdminLayout({
           <div className='flex h-screen flex-col'>
             <Header clinicName={clinicName} notificationCount={0} />
             <main className='flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-50'>
-              <div className='mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col p-6'>{children}</div>
+              <div className={`mx-auto flex h-full min-h-0 w-full flex-col ${isPrintStudio ? 'max-w-none p-4 lg:p-5' : 'max-w-7xl p-6'}`}>{children}</div>
             </main>
           </div>
         </SidebarInset>

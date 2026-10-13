@@ -10,7 +10,6 @@ const items = [
   { label: 'Categorías y subcategorías', icon: Package, href: '/workstation/admin/settings/inventory/categories' },
   { label: 'Ventas / Cajas POS', icon: Boxes, href: '/workstation/admin/settings/pos' },
   { label: 'Impresión', icon: Printer, href: '/workstation/admin/settings/printing' },
-  { label: 'Diseñador de impresión', icon: Printer, href: '/workstation/admin/settings/printStudio' },
   { label: 'Boxes / Consultorios', icon: DoorOpen, href: '/workstation/admin/settings/consultorios' },
   { label: 'Agenda y citas', icon: CalendarClock, href: '/workstation/admin/settings/agenda' },
   { label: 'Notificaciones', icon: Bell, disabled: true },

@@ -42,7 +42,9 @@ export interface SalePrintResponse {
     items: Array<{ name: string; quantity: number; price: number; subtotal: number; ivaIncluded?: boolean; ivaRate?: number; netAmount?: number; taxAmount?: number }>
     subtotal: number
     discount: number
+    discountPercent?: number
     tax: number
+    taxBreakdown?: string
     total: number
     payments: Array<{ method: string; amount: number }>
     taxRate?: number

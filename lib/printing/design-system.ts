@@ -11,8 +11,11 @@ export type PrintElementType =
   | 'SPACER'
   | 'COLUMN_GROUP';
 
+export type PrintSection = 'HEADER' | 'DETAIL' | 'FOOTER';
+
 export interface PrintElementProperties {
   alignment?: 'left' | 'center' | 'right';
+  fontFamily?: 'A' | 'B';
   fontSize?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   fontWeight?: 'normal' | 'bold';
   marginTop?: number;
@@ -26,6 +29,7 @@ export interface PrintElementProperties {
 export interface PrintElement {
   id: string;
   type: PrintElementType;
+  section?: PrintSection;
   fieldKey?: string; // e.g., 'company.name', 'document.number'
   label?: string;    // Label to show if it's a fixed field
   properties: PrintElementProperties;
@@ -58,7 +62,10 @@ export const PRINT_FIELDS_REGISTRY: Record<string, { key: string; label: string;
   'items[].unitPrice': { key: 'items[].unitPrice', label: 'Precio Unit.', category: 'Ítems', repeatable: true },
   'items[].total': { key: 'items[].total', label: 'Subtotal', category: 'Ítems', repeatable: true },
   'totals.subtotal': { key: 'totals.subtotal', label: 'Subtotal', category: 'Totales' },
+  'totals.discount': { key: 'totals.discount', label: 'Descuento', category: 'Totales' },
+  'totals.discountPercent': { key: 'totals.discountPercent', label: 'Porcentaje de descuento', category: 'Totales' },
   'totals.tax': { key: 'totals.tax', label: 'Impuestos', category: 'Totales' },
+  'totals.taxBreakdown': { key: 'totals.taxBreakdown', label: 'IVA discriminado por tasa', category: 'Totales' },
   'totals.total': { key: 'totals.total', label: 'Total General', category: 'Totales' },
   'payments[].method': { key: 'payments[].method', label: 'Método Pago', category: 'Pagos', repeatable: true },
   'payments[].amount': { key: 'payments[].amount', label: 'Monto Pago', category: 'Pagos', repeatable: true },
