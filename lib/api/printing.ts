@@ -49,8 +49,10 @@ export const createPrintingTarget = (data: {
 export const deletePrintingLocation = (id: number) =>
   post<any>(`/printing/locations/${id}/delete`, {})
 
-export const deletePrintingTemplate = (id: number) =>
-  post<any>(`/printing/templates/${id}/delete`, {})
+export const deactivatePrintingTemplate = (id: number) =>
+  post<{ id: number; resource: 'templates'; isActive: false }>(`/printing/config/templates/${id}/deactivate`, {})
+
+export const deletePrintingTemplate = deactivatePrintingTemplate
 
 export const createPrintingRule = (data: { event: string; targetId: number; templateKey: string; priority?: number }) =>
   post<any>("/printing/rules", data)

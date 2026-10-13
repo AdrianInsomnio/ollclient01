@@ -119,11 +119,17 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const isReadOnly = template.id !== 'new' && editingTemplateId !== template.id;
 
+  const cleanTemplatesWithoutVersions = async (items: PrintTemplate[]) => {
+    const orphaned = items.filter(item => !item.versions?.length && item.isActive);
+    await Promise.allSettled(orphaned.map(item => PrintingAPI.deactivatePrintingTemplate(item.id)));
+    return items.filter(item => item.versions?.length);
+  };
+
   const refreshTemplates = async () => {
     setLoading(true);
     try {
       const data = await PrintingAPI.getPrintingTemplates();
-      setTemplates(data);
+      setTemplates(await cleanTemplatesWithoutVersions(data));
     } catch (error) {
       console.error("Error loading templates", error);
     } finally {
@@ -180,8 +186,9 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
   const loadTemplate = async (id: string) => {
     try {
       const templatesList = await PrintingAPI.getPrintingTemplates();
-      setTemplates(templatesList);
-      const found = templatesList.find(t => String(t.id) === id);
+      const availableTemplates = await cleanTemplatesWithoutVersions(templatesList);
+      setTemplates(availableTemplates);
+      const found = availableTemplates.find(t => String(t.id) === id);
       if (found) {
         setEditingTemplateId(null);
         const version = [...(found.versions || [])].sort((a, b) => b.version - a.version)[0];
@@ -197,6 +204,9 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
           versionId: version?.id,
           version: version?.version
         });
+      } else if (templatesList.some(item => String(item.id) === id && !item.versions?.length)) {
+        setEditingTemplateId(null);
+        setTemplate({ id: 'new', name: 'Nuevo Template', templateKey: 'nuevo-template', documentType: 'GENERAL', pageSize: 'THERMAL_80', layout: [] });
       }
     } catch (error) {
       console.error("Error loading template", error);
