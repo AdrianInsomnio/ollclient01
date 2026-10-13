@@ -13,7 +13,6 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const pathname = usePathname()
   const { user, isAuthenticated, checking } = useAuthStore()
 
   useEffect(() => {
