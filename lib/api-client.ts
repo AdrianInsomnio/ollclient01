@@ -56,6 +56,10 @@ async function request<T>(
     idempotencyKey,
     ...fetchConfig
   } = config;
+  const method = (fetchConfig.method || "GET").toUpperCase();
+  // Reads are safe to retry. Writes need a stable idempotency key so a
+  // timeout after the server commits cannot create a duplicate operation.
+  const retryable = method === "GET" || Boolean(idempotencyKey);
 
   // Use getAuthSnapshot to read from localStorage if store hasn"t hydrated yet
   // This fixes session persistence on F5/back navigation
@@ -82,12 +86,11 @@ async function request<T>(
     ...(AUTH_VIA_COOKIE ? { credentials: "include" as RequestCredentials } : {}),
   };
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {
         ...fetchInit,
@@ -111,6 +114,7 @@ async function request<T>(
 
       return await response.json();
     } catch (error) {
+      clearTimeout(timeoutId);
       lastError = error as Error;
 
       if (error instanceof ApiError) {
@@ -119,7 +123,7 @@ async function request<T>(
           throw error;
         }
         if (error.status === 500 || error.status >= 503) {
-          if (attempt < retries) {
+          if (retryable && attempt < retries) {
             await new Promise((r) => setTimeout(r, retryDelay * Math.pow(2, attempt)));
             continue;
           }
@@ -131,7 +135,7 @@ async function request<T>(
         throw new ApiError("TIMEOUT", "La solicitud tardó demasiado", 408);
       }
 
-      if (attempt < retries) {
+      if (retryable && attempt < retries) {
         await new Promise((r) => setTimeout(r, retryDelay * Math.pow(2, attempt)));
       } else {
         clearTimeout(timeoutId);
@@ -140,7 +144,6 @@ async function request<T>(
     }
   }
 
-  clearTimeout(timeoutId);
   throw new ApiError("UNKNOWN_ERROR", lastError?.message || "Error inesperado", 0);
 }
 
