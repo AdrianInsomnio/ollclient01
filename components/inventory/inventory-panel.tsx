@@ -87,6 +87,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuthStore } from "@/lib/auth-store";
 
 type Tab = "products" | "medicines" | "services" | "categories";
+type InventoryMode = "inventory" | "pharmacy";
 type DialogKind = "product" | "service" | "category" | null;
 
 const money = (value?: number | null) =>
@@ -146,7 +147,11 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-export function InventoryPanel({ initialTab = "products" }: { initialTab?: Tab } = {}) {
+export function InventoryPanel({
+  initialTab = "products",
+  mode = "inventory",
+}: { initialTab?: Tab; mode?: InventoryMode } = {}) {
+  const isPharmacyView = mode === "pharmacy";
   const tenantId = useAuthStore((state) => state.tenantId ?? "unknown");
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -154,6 +159,7 @@ export function InventoryPanel({ initialTab = "products" }: { initialTab?: Tab }
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productInitialCategoryId, setProductInitialCategoryId] = useState<number | undefined>();
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [editingCategory, setEditingCategory] =
     useState<ProductCategory | null>(null);
@@ -192,13 +198,26 @@ export function InventoryPanel({ initialTab = "products" }: { initialTab?: Tab }
 
   const openNew = (kind: Exclude<DialogKind, null>) => {
     setEditingProduct(null);
+    setProductInitialCategoryId(undefined);
     setEditingService(null);
     setEditingCategory(null);
     setDialog(kind);
   };
 
+  const openNewMedicine = () => {
+    const category = categoriesQuery.data?.find(
+      (item) => item.isActive && /medicamento|farmacia/i.test(item.name),
+    );
+    setEditingProduct(null);
+    setProductInitialCategoryId(category?.id);
+    setEditingService(null);
+    setEditingCategory(null);
+    setDialog("product");
+  };
+
   const openEditProduct = (product: Product) => {
     setEditingProduct(product);
+    setProductInitialCategoryId(undefined);
     setDialog("product");
   };
   const openEditService = (service: Service) => {
@@ -267,12 +286,12 @@ export function InventoryPanel({ initialTab = "products" }: { initialTab?: Tab }
             Administración
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            {tab === "medicines" ? "Farmacia" : "Inventario"}
+            {isPharmacyView ? "Farmacia" : "Inventario"}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            {tab === "medicines"
-              ? "Consulta medicamentos, disponibilidad y movimientos de stock de la clínica."
-              : "Gestiona productos, servicios, categorías y existencias de la clínica."}
+            {isPharmacyView
+              ? "Consulta y gestiona medicamentos, disponibilidad y movimientos de stock de la clínica."
+              : "Gestiona el catálogo general, servicios, categorías y existencias de la clínica."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -282,54 +301,44 @@ export function InventoryPanel({ initialTab = "products" }: { initialTab?: Tab }
           >
             <Download /> Exportar CSV
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
-            <Printer /> Imprimir resumen
-          </Button>
+          {!isPharmacyView && (
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer /> Imprimir resumen
+            </Button>
+          )}
           <Button variant="outline" onClick={() => void invalidate()}>
             <RefreshCw /> Actualizar
           </Button>
-          <Button variant="outline" onClick={() => openNew("service")}>
-            <Wrench /> Nuevo servicio
-          </Button>
-          <Button onClick={() => openNew("product")}>
-            <Plus /> Nuevo producto
+          {!isPharmacyView && (
+            <Button variant="outline" onClick={() => openNew("service")}>
+              <Wrench /> Nuevo servicio
+            </Button>
+          )}
+          <Button onClick={isPharmacyView ? openNewMedicine : () => openNew("product")}>
+            <Plus /> {isPharmacyView ? "Nuevo medicamento" : "Nuevo producto"}
           </Button>
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <SummaryCard
-          label="Total productos"
-          value={productStats.total}
-          icon={<Package />}
-          tone="text-slate-600"
-        />
-        <SummaryCard
-          label="Productos activos"
-          value={productStats.active}
-          icon={<Package />}
-          tone="text-blue-600"
-        />
-        <SummaryCard
-          label="Con stock"
-          value={productStats.stocked}
-          icon={<Boxes />}
-          tone="text-emerald-600"
-        />
-        <SummaryCard
-          label="Stock bajo"
-          value={productStats.low}
-          icon={<ArrowDownUp />}
-          tone="text-amber-600"
-        />
-        <SummaryCard
-          label="Sin stock"
-          value={productStats.empty}
-          icon={<Boxes />}
-          tone="text-rose-600"
-        />
+        {isPharmacyView ? (
+          <>
+            <SummaryCard label="Medicamentos" value={medicines.length} icon={<Package />} tone="text-slate-600" />
+            <SummaryCard label="Activos" value={medicines.filter((product) => product.isActive).length} icon={<Package />} tone="text-blue-600" />
+            <SummaryCard label="Stock bajo" value={medicines.filter((product) => product.stock > 0 && product.stock <= product.minStock).length} icon={<ArrowDownUp />} tone="text-amber-600" />
+            <SummaryCard label="Sin stock" value={medicines.filter((product) => product.stock === 0).length} icon={<Boxes />} tone="text-rose-600" />
+          </>
+        ) : (
+          <>
+            <SummaryCard label="Total productos" value={productStats.total} icon={<Package />} tone="text-slate-600" />
+            <SummaryCard label="Productos activos" value={productStats.active} icon={<Package />} tone="text-blue-600" />
+            <SummaryCard label="Con stock" value={productStats.stocked} icon={<Boxes />} tone="text-emerald-600" />
+            <SummaryCard label="Stock bajo" value={productStats.low} icon={<ArrowDownUp />} tone="text-amber-600" />
+            <SummaryCard label="Sin stock" value={productStats.empty} icon={<Boxes />} tone="text-rose-600" />
+          </>
+        )}
       </div>
-      <Card>
+      {!isPharmacyView && <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
           <div>
             <p className="text-sm text-muted-foreground">
@@ -344,9 +353,9 @@ export function InventoryPanel({ initialTab = "products" }: { initialTab?: Tab }
             servicios activos
           </p>
         </CardContent>
-      </Card>
+      </Card>}
 
-      {(tab === "products" || tab === "medicines") && (
+      {(isPharmacyView || tab === "products") && (
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span className="text-sm text-muted-foreground">Filtrar stock</span>
           <NativeFilter
@@ -361,10 +370,22 @@ export function InventoryPanel({ initialTab = "products" }: { initialTab?: Tab }
           />
         </div>
       )}
-      <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
+      {isPharmacyView ? (
+        <ProductsTable
+          products={medicines}
+          categories={categoriesQuery.data ?? []}
+          stockFilter={productStockFilter}
+          title="Medicamentos registrados"
+          emptyMessage="No hay medicamentos categorizados para Farmacia. Usa “Nuevo medicamento” para registrarlo."
+          onFilteredChange={setFilteredProducts}
+          onEdit={openEditProduct}
+          onAdjust={setStockProduct}
+          onMovements={setMovementsProduct}
+          onRefresh={() => void invalidate()}
+        />
+      ) : <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
         <TabsList>
           <TabsTrigger value="products">Productos</TabsTrigger>
-          <TabsTrigger value="medicines">Medicamentos</TabsTrigger>
           <TabsTrigger value="services">Servicios</TabsTrigger>
           <TabsTrigger value="categories">Categorías</TabsTrigger>
         </TabsList>
@@ -374,21 +395,6 @@ export function InventoryPanel({ initialTab = "products" }: { initialTab?: Tab }
         >
           <ProductsTable
             products={productsQuery.data ?? []}
-            categories={categoriesQuery.data ?? []}
-            stockFilter={productStockFilter}
-            onFilteredChange={setFilteredProducts}
-            onEdit={openEditProduct}
-            onAdjust={setStockProduct}
-            onMovements={setMovementsProduct}
-            onRefresh={() => void invalidate()}
-          />
-        </TabsContent>
-        <TabsContent
-          value="medicines"
-          className="mt-5 min-h-[clamp(500px,65vh,800px)]"
-        >
-          <ProductsTable
-            products={medicines}
             categories={categoriesQuery.data ?? []}
             stockFilter={productStockFilter}
             onFilteredChange={setFilteredProducts}
@@ -414,13 +420,15 @@ export function InventoryPanel({ initialTab = "products" }: { initialTab?: Tab }
             onRefresh={() => void invalidate()}
           />
         </TabsContent>
-      </Tabs>
+      </Tabs>}
 
       <ProductDialog
-        key={`product-${editingProduct?.id ?? "new"}`}
+        key={`product-${editingProduct?.id ?? "new"}-${mode}-${productInitialCategoryId ?? "none"}`}
         open={dialog === "product"}
         product={editingProduct}
         categories={categoriesQuery.data ?? []}
+        initialCategoryId={productInitialCategoryId}
+        medicineOnly={isPharmacyView}
         onOpenChange={(open) => !open && setDialog(null)}
         onSaved={() => {
           setDialog(null);
@@ -492,6 +500,8 @@ function ProductsTable({
   products,
   categories,
   stockFilter,
+  title = "Catálogo de productos",
+  emptyMessage = "No hay productos registrados",
   onFilteredChange,
   onEdit,
   onAdjust,
@@ -501,6 +511,8 @@ function ProductsTable({
   products: Product[];
   categories: ProductCategory[];
   stockFilter: string;
+  title?: string;
+  emptyMessage?: string;
   onFilteredChange: (products: Product[]) => void;
   onEdit: (product: Product) => void;
   onAdjust: (product: Product) => void;
@@ -557,7 +569,7 @@ function ProductsTable({
     <Card className="flex min-h-0 flex-col">
       <CardHeader className="shrink-0 gap-4">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <CardTitle className="text-base">Catálogo de productos</CardTitle>
+          <CardTitle className="text-base">{title}</CardTitle>
           <div className="flex flex-col gap-2 sm:flex-row">
             <div className="relative">
               <Search className="absolute left-2.5 top-2 size-4 text-muted-foreground" />
@@ -645,7 +657,7 @@ function ProductsTable({
                 text={
                   search || status !== "all" || category !== "all"
                     ? "No hay productos para estos filtros."
-                    : "No hay productos registrados"
+                    : emptyMessage
                 }
               />
             ) : (
@@ -1082,17 +1094,21 @@ function ProductDialog({
   open,
   product,
   categories,
+  initialCategoryId,
+  medicineOnly = false,
   onOpenChange,
   onSaved,
 }: {
   open: boolean;
   product: Product | null;
   categories: ProductCategory[];
+  initialCategoryId?: number;
+  medicineOnly?: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
   const tenantId = useAuthStore((state) => state.tenantId ?? "unknown");
-  const [form, setForm] = useState<ProductPayload>(() => productForm(product));
+  const [form, setForm] = useState<ProductPayload>(() => productForm(product, initialCategoryId));
   const subcategoriesQuery = useQuery({
     queryKey: ["inventory-subcategories-form", tenantId, form.categoryId],
     queryFn: () => getProductSubcategories(Number(form.categoryId)),
@@ -1129,6 +1145,10 @@ function ProductDialog({
     event.preventDefault();
     setError("");
     if (!form.name.trim()) return setError("El nombre es obligatorio.");
+    const category = availableCategories.find((item) => item.id === form.categoryId);
+    if (medicineOnly && !/medicamento|farmacia/i.test(category?.name ?? "")) {
+      return setError("Selecciona una categoría de medicamentos para guardar el producto en Farmacia.");
+    }
     if (
       form.price < 0 ||
       (form.cost != null && form.cost < 0) ||
@@ -1140,8 +1160,8 @@ function ProductDialog({
       );
     mutation.mutate();
   };
-  const selectedCategory = categories.find((item) => item.id === form.categoryId);
-  const isMedicine = /medicamento|farmacia/i.test(selectedCategory?.name ?? "");
+  const selectedCategory = availableCategories.find((item) => item.id === form.categoryId);
+  const isMedicine = medicineOnly || /medicamento|farmacia/i.test(selectedCategory?.name ?? "");
   const supplierOptions = [...(suppliersQuery.data ?? [])];
   if (product?.supplierRecord && !supplierOptions.some((item) => item.id === product.supplierRecord?.id)) {
     supplierOptions.push({ ...product.supplierRecord, isActive: product.supplierRecord.isActive ?? false });
@@ -1151,10 +1171,14 @@ function ProductDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {product ? "Editar producto" : "Nuevo producto"}
+            {product
+              ? medicineOnly ? "Editar medicamento" : "Editar producto"
+              : medicineOnly ? "Nuevo medicamento" : "Nuevo producto"}
           </DialogTitle>
           <DialogDescription>
-            Los datos se guardan en la clínica activa del usuario autenticado.
+            {medicineOnly
+              ? "Registra el medicamento y sus datos farmacéuticos. El stock inicial queda trazado en el inventario de la clínica."
+              : "Los datos se guardan en la clínica activa del usuario autenticado."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-5">
@@ -1215,6 +1239,7 @@ function ProductDialog({
             <CategoryPicker
               value={form.categoryId ? String(form.categoryId) : "none"}
               categories={availableCategories}
+              required={medicineOnly}
               onChange={(value) => {
                 const categoryId = value === "none" ? undefined : Number(value);
                 setForm((current) => ({
@@ -1228,6 +1253,13 @@ function ProductDialog({
                 update("categoryId", category.id);
               }}
             />
+            {medicineOnly && !availableCategories.some((category) =>
+              category.isActive && /medicamento|farmacia/i.test(category.name),
+            ) && (
+              <p className="text-xs text-muted-foreground sm:col-span-2">
+                Aún no existe una categoría de medicamentos. Créala desde “Nueva” y selecciónala para guardar el medicamento.
+              </p>
+            )}
             <Field label="Subcategoría">
               <select
                 value={form.subcategoryId ? String(form.subcategoryId) : "none"}
@@ -1264,7 +1296,14 @@ function ProductDialog({
           </div>
           {isMedicine && (
             <section className="space-y-3 rounded-lg border p-4">
-              <div><h3 className="text-sm font-medium">Datos farmacéuticos</h3><p className="text-xs text-muted-foreground">Opcionales; solo se muestran para categorías de medicamentos.</p></div>
+              <div>
+                <h3 className="text-sm font-medium">Datos farmacéuticos</h3>
+                <p className="text-xs text-muted-foreground">
+                  {medicineOnly
+                    ? "Opcionales; completa los datos que correspondan al medicamento."
+                    : "Opcionales; solo se muestran para categorías de medicamentos."}
+                </p>
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Principio activo"><Input value={form.activeIngredient ?? ""} onChange={(event) => update("activeIngredient", event.target.value || null)} /></Field>
                 <Field label="Concentración"><Input value={form.concentration ?? ""} onChange={(event) => update("concentration", event.target.value || null)} placeholder="Ej.: 50 mg/ml" /></Field>
@@ -1389,7 +1428,7 @@ function ProductDialog({
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending && <RefreshCw className="animate-spin" />}{" "}
-              {product ? "Guardar cambios" : "Crear producto"}
+              {product ? "Guardar cambios" : medicineOnly ? "Crear medicamento" : "Crear producto"}
             </Button>
           </DialogFooter>
         </form>
@@ -1769,12 +1808,14 @@ function MovementsDialog({
 function CategoryPicker({
   value,
   categories,
+  required = false,
   valueMode,
   onChange,
   onCreated,
 }: {
   value: string;
   categories: ProductCategory[];
+  required?: boolean;
   valueMode?: "id" | "name";
   onChange: (value: string) => void;
   onCreated: (category: ProductCategory) => void;
@@ -1804,7 +1845,7 @@ function CategoryPicker({
     (value !== "none" && Number.isNaN(Number(value)) ? "name" : "id");
   return (
     <div className="space-y-2">
-      <Label>Categoría</Label>
+      <Label>{required ? "Categoría de medicamento *" : "Categoría"}</Label>
       <div className="flex gap-2">
         <Select value={value} onValueChange={onChange}>
           <SelectTrigger className="min-w-0 flex-1">
@@ -1905,7 +1946,7 @@ function CheckboxField({
     </label>
   );
 }
-function productForm(product: Product | null): ProductPayload {
+function productForm(product: Product | null, initialCategoryId?: number): ProductPayload {
   return {
     name: product?.name ?? "",
     description: product?.description ?? undefined,
@@ -1922,7 +1963,7 @@ function productForm(product: Product | null): ProductPayload {
     indicatedSpecies: product?.indicatedSpecies ?? undefined,
     administrationRoute: product?.administrationRoute ?? undefined,
     requiresPrescription: product?.requiresPrescription ?? undefined,
-    categoryId: product?.categoryId ?? undefined,
+    categoryId: product?.categoryId ?? initialCategoryId,
     subcategoryId: product?.subcategoryId ?? undefined,
     priceType: product?.priceType ?? "FIXED",
     price: product?.price ?? 0,
