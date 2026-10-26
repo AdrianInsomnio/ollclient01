@@ -235,10 +235,16 @@ export function InventoryPanel({ initialTab = "products" }: { initialTab?: Tab }
     categoriesQuery.isLoading;
   const hasError =
     productsQuery.isError || servicesQuery.isError || categoriesQuery.isError;
-  const medicines = (productsQuery.data ?? []).filter((product) =>
-    /medicamento|farmacia/i.test(
-      product.category?.name ?? categoriesQuery.data?.find((item) => item.id === product.categoryId)?.name ?? "",
-    ),
+  const medicines = useMemo(
+    () =>
+      (productsQuery.data ?? []).filter((product) =>
+        /medicamento|farmacia/i.test(
+          product.category?.name ??
+            categoriesQuery.data?.find((item) => item.id === product.categoryId)?.name ??
+            "",
+        ),
+      ),
+    [productsQuery.data, categoriesQuery.data],
   );
 
   if (isLoading) return <InventorySkeleton />;
