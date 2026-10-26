@@ -1,8 +1,12 @@
 import { get, post, put, patch } from '../api-client'
 
+export type ProductCategoryType = 'PRODUCTO' | 'SERVICIO' | 'FARMACIA'
+export const PRODUCT_CATEGORY_TYPES: ProductCategoryType[] = ['PRODUCTO', 'SERVICIO', 'FARMACIA']
+
 export interface ProductCategory {
   id: number
   name: string
+  type: ProductCategoryType
   description?: string | null
   isActive: boolean
   productsCount?: number
@@ -28,12 +32,12 @@ export async function getProductCategories() {
   }))
 }
 
-export async function createProductCategory(data: { name: string; description?: string }) {
+export async function createProductCategory(data: { name: string; type?: ProductCategoryType; description?: string }) {
   const response = await post<{ category: ProductCategory }>('/product-categories', data)
   return response.category
 }
 
-export async function updateProductCategory(id: number, data: { name: string; description?: string }) {
+export async function updateProductCategory(id: number, data: { name: string; type?: ProductCategoryType; description?: string }) {
   const response = await put<{ category: ProductCategory }>(`/product-categories/${id}`, data)
   return response.category
 }

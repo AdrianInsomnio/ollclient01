@@ -45,6 +45,7 @@ import {
   updateProductCategory,
   updateProductCategoryStatus,
   type ProductCategory,
+  type ProductCategoryType,
 } from "@/lib/api/product-categories";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -206,7 +207,7 @@ export function InventoryPanel({
 
   const openNewMedicine = () => {
     const category = categoriesQuery.data?.find(
-      (item) => item.isActive && /medicamento|farmacia/i.test(item.name),
+      (item) => item.isActive && item.type === "FARMACIA",
     );
     setEditingProduct(null);
     setProductInitialCategoryId(category?.id);
@@ -603,7 +604,7 @@ function ProductsTable({
               }}
               options={[
                 ["all", "Todas las categorías"],
-                ...categories.map((item) => [String(item.id), item.name]),
+                ...categories.filter((item) => item.type !== "SERVICIO").map((item) => [String(item.id), item.name]),
               ]}
             />
           </div>
@@ -795,7 +796,7 @@ function ServicesTable({
               onChange={setCategory}
               options={[
                 ["all", "Todas las categorías"],
-                ...categories.map((item) => [String(item.id), item.name]),
+                ...categories.filter((item) => item.type === "SERVICIO").map((item) => [String(item.id), item.name]),
               ]}
             />
             <NativeFilter
@@ -937,6 +938,7 @@ function CategoriesTable({
             <TableRow>
               {[
                 "Nombre",
+                "Clasificación",
                 "Descripción",
                 "Productos asociados",
                 "Estado",
@@ -948,11 +950,12 @@ function CategoriesTable({
           </TableHeader>
           <TableBody>
             {categories.length === 0 ? (
-              <EmptyRow colSpan={5} text="No hay categorías registradas" />
+              <EmptyRow colSpan={6} text="No hay categorías registradas" />
             ) : (
               categories.map((category) => (
                 <TableRow key={category.id}>
                   <TableCell className="font-medium">{category.name}</TableCell>
+                  <TableCell><Badge variant="outline">{category.type}</Badge></TableCell>
                   <TableCell>{category.description || "—"}</TableCell>
                   <TableCell>{category.productsCount ?? 0}</TableCell>
                   <TableCell>
@@ -1146,8 +1149,8 @@ function ProductDialog({
     setError("");
     if (!form.name.trim()) return setError("El nombre es obligatorio.");
     const category = availableCategories.find((item) => item.id === form.categoryId);
-    if (medicineOnly && !/medicamento|farmacia/i.test(category?.name ?? "")) {
-      return setError("Selecciona una categoría de medicamentos para guardar el producto en Farmacia.");
+    if (medicineOnly && category?.type !== "FARMACIA") {
+      return setError("Selecciona una categoría clasificada como Farmacia para guardar el medicamento.");
     }
     if (
       form.price < 0 ||
@@ -1161,7 +1164,11 @@ function ProductDialog({
     mutation.mutate();
   };
   const selectedCategory = availableCategories.find((item) => item.id === form.categoryId);
-  const isMedicine = medicineOnly || /medicamento|farmacia/i.test(selectedCategory?.name ?? "");
+  const isMedicine = medicineOnly || selectedCategory?.type === "FARMACIA";
+  const categoryType: ProductCategoryType = medicineOnly ? "FARMACIA" : "PRODUCTO";
+  const selectableCategories = availableCategories.filter(
+    (category) => category.type === categoryType || category.id === form.categoryId,
+  );
   const supplierOptions = [...(suppliersQuery.data ?? [])];
   if (product?.supplierRecord && !supplierOptions.some((item) => item.id === product.supplierRecord?.id)) {
     supplierOptions.push({ ...product.supplierRecord, isActive: product.supplierRecord.isActive ?? false });
@@ -1238,7 +1245,8 @@ function ProductDialog({
             </Field>
             <CategoryPicker
               value={form.categoryId ? String(form.categoryId) : "none"}
-              categories={availableCategories}
+              categories={selectableCategories}
+              categoryType={categoryType}
               required={medicineOnly}
               onChange={(value) => {
                 const categoryId = value === "none" ? undefined : Number(value);
@@ -1254,7 +1262,7 @@ function ProductDialog({
               }}
             />
             {medicineOnly && !availableCategories.some((category) =>
-              category.isActive && /medicamento|farmacia/i.test(category.name),
+              category.isActive && category.type === "FARMACIA",
             ) && (
               <p className="text-xs text-muted-foreground sm:col-span-2">
                 Aún no existe una categoría de medicamentos. Créala desde “Nueva” y selecciónala para guardar el medicamento.
@@ -1503,6 +1511,7 @@ function ServiceDialog({
             <CategoryPicker
               value={form.category || "none"}
               categories={availableCategories}
+              categoryType="SERVICIO"
               onChange={(value) =>
                 update("category", value === "none" ? undefined : value)
               }
@@ -1586,12 +1595,13 @@ function CategoryDialog({
 }) {
   const [name, setName] = useState(category?.name ?? "");
   const [description, setDescription] = useState(category?.description ?? "");
+  const [type, setType] = useState<ProductCategoryType>(category?.type ?? "PRODUCTO");
   const [error, setError] = useState("");
   const mutation = useMutation({
     mutationFn: () =>
       category
-        ? updateProductCategory(category.id, { name, description })
-        : createProductCategory({ name: name.toUpperCase(), description }),
+        ? updateProductCategory(category.id, { name, description, type })
+        : createProductCategory({ name: name.toUpperCase(), description, type }),
     onSuccess: () => {
       toast.success(
         category
@@ -1618,6 +1628,13 @@ function CategoryDialog({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
+          <Field label="Clasificación *">
+            <select value={type} onChange={(event) => setType(event.target.value as ProductCategoryType)} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm">
+              <option value="PRODUCTO">Producto</option>
+              <option value="SERVICIO">Servicio</option>
+              <option value="FARMACIA">Farmacia</option>
+            </select>
+          </Field>
           <Field label="Nombre *">
             <Input
               value={name}
@@ -1809,6 +1826,7 @@ function CategoryPicker({
   value,
   categories,
   required = false,
+  categoryType,
   valueMode,
   onChange,
   onCreated,
@@ -1816,6 +1834,7 @@ function CategoryPicker({
   value: string;
   categories: ProductCategory[];
   required?: boolean;
+  categoryType: ProductCategoryType;
   valueMode?: "id" | "name";
   onChange: (value: string) => void;
   onCreated: (category: ProductCategory) => void;
@@ -1826,7 +1845,7 @@ function CategoryPicker({
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: () =>
-      createProductCategory({ name: name.trim().toUpperCase() }),
+        createProductCategory({ name: name.trim().toUpperCase(), type: categoryType }),
     onSuccess: (category) => {
       onCreated(category);
       void queryClient.invalidateQueries({
@@ -1854,7 +1873,7 @@ function CategoryPicker({
           <SelectContent>
             <SelectItem value="none">Sin categoría</SelectItem>
             {categories
-              .filter((category) => category.isActive)
+              .filter((category) => category.isActive && category.type === categoryType)
               .map((category) => (
                 <SelectItem
                   key={category.id}
