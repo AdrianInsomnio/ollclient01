@@ -29,6 +29,7 @@ import {
   type ProductPayload,
   type StockMovement,
 } from "@/lib/api/products";
+import { getSuppliers } from "@/lib/api/suppliers";
 import {
   createService,
   getServices,
@@ -85,7 +86,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAuthStore } from "@/lib/auth-store";
 
-type Tab = "products" | "services" | "categories";
+type Tab = "products" | "medicines" | "services" | "categories";
 type DialogKind = "product" | "service" | "category" | null;
 
 const money = (value?: number | null) =>
@@ -145,10 +146,10 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-export function InventoryPanel() {
+export function InventoryPanel({ initialTab = "products" }: { initialTab?: Tab } = {}) {
   const tenantId = useAuthStore((state) => state.tenantId ?? "unknown");
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>("products");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [productStockFilter, setProductStockFilter] = useState("all");
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [dialog, setDialog] = useState<DialogKind>(null);
@@ -234,6 +235,11 @@ export function InventoryPanel() {
     categoriesQuery.isLoading;
   const hasError =
     productsQuery.isError || servicesQuery.isError || categoriesQuery.isError;
+  const medicines = (productsQuery.data ?? []).filter((product) =>
+    /medicamento|farmacia/i.test(
+      product.category?.name ?? categoriesQuery.data?.find((item) => item.id === product.categoryId)?.name ?? "",
+    ),
+  );
 
   if (isLoading) return <InventorySkeleton />;
   if (hasError)
@@ -255,11 +261,12 @@ export function InventoryPanel() {
             Administración
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            Inventario
+            {tab === "medicines" ? "Farmacia" : "Inventario"}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Gestiona productos, servicios, categorías y existencias de la
-            clínica.
+            {tab === "medicines"
+              ? "Consulta medicamentos, disponibilidad y movimientos de stock de la clínica."
+              : "Gestiona productos, servicios, categorías y existencias de la clínica."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -333,7 +340,7 @@ export function InventoryPanel() {
         </CardContent>
       </Card>
 
-      {tab === "products" && (
+      {(tab === "products" || tab === "medicines") && (
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span className="text-sm text-muted-foreground">Filtrar stock</span>
           <NativeFilter
@@ -351,6 +358,7 @@ export function InventoryPanel() {
       <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
         <TabsList>
           <TabsTrigger value="products">Productos</TabsTrigger>
+          <TabsTrigger value="medicines">Medicamentos</TabsTrigger>
           <TabsTrigger value="services">Servicios</TabsTrigger>
           <TabsTrigger value="categories">Categorías</TabsTrigger>
         </TabsList>
@@ -360,6 +368,21 @@ export function InventoryPanel() {
         >
           <ProductsTable
             products={productsQuery.data ?? []}
+            categories={categoriesQuery.data ?? []}
+            stockFilter={productStockFilter}
+            onFilteredChange={setFilteredProducts}
+            onEdit={openEditProduct}
+            onAdjust={setStockProduct}
+            onMovements={setMovementsProduct}
+            onRefresh={() => void invalidate()}
+          />
+        </TabsContent>
+        <TabsContent
+          value="medicines"
+          className="mt-5 min-h-[clamp(500px,65vh,800px)]"
+        >
+          <ProductsTable
+            products={medicines}
             categories={categoriesQuery.data ?? []}
             stockFilter={productStockFilter}
             onFilteredChange={setFilteredProducts}
@@ -486,7 +509,7 @@ function ProductsTable({
   const filtered = useMemo(
     () =>
       products.filter((product) => {
-        const matchesSearch = `${product.name} ${product.sku ?? ""}`
+        const matchesSearch = `${product.name} ${product.sku ?? ""} ${product.supplierRecord?.name ?? product.supplier ?? ""}`
           .toLowerCase()
           .includes(search.toLowerCase());
         const matchesStatus =
@@ -538,7 +561,7 @@ function ProductsTable({
                   setPage(1);
                   setSearch(event.target.value);
                 }}
-                placeholder="Buscar producto o SKU"
+                placeholder="Buscar producto, SKU o proveedor"
                 className="pl-8 sm:w-64"
               />
             </div>
@@ -1070,6 +1093,12 @@ function ProductDialog({
     enabled: Boolean(form.categoryId),
     staleTime: 10 * 60 * 1000,
   });
+  const suppliersQuery = useQuery({
+    queryKey: ["inventory-suppliers-active", tenantId],
+    queryFn: () => getSuppliers(true),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
   const [availableCategories, setAvailableCategories] = useState(categories);
   const [error, setError] = useState("");
   const mutation = useMutation({
@@ -1105,6 +1134,12 @@ function ProductDialog({
       );
     mutation.mutate();
   };
+  const selectedCategory = categories.find((item) => item.id === form.categoryId);
+  const isMedicine = /medicamento|farmacia/i.test(selectedCategory?.name ?? "");
+  const supplierOptions = [...(suppliersQuery.data ?? [])];
+  if (product?.supplierRecord && !supplierOptions.some((item) => item.id === product.supplierRecord?.id)) {
+    supplierOptions.push({ ...product.supplierRecord, isActive: product.supplierRecord.isActive ?? false });
+  }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
@@ -1148,13 +1183,28 @@ function ProductDialog({
                 }
               />
             </Field>
-            <Field label="Proveedor">
-              <Input
-                value={form.supplier ?? ""}
-                onChange={(event) =>
-                  update("supplier", event.target.value || undefined)
-                }
-              />
+            <Field label="Proveedor principal">
+              <select
+                value={form.supplierId == null ? "none" : String(form.supplierId)}
+                onChange={(event) => {
+                  const supplierId = event.target.value === "none" ? null : Number(event.target.value);
+                  update("supplierId", supplierId);
+                  update("supplier", null);
+                }}
+                disabled={suppliersQuery.isLoading}
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+              >
+                <option value="none">Sin proveedor asignado</option>
+                {supplierOptions.map((supplier) => (
+                  <option key={supplier.id} value={String(supplier.id)}>
+                    {supplier.name}{supplier.rut ? ` · ${supplier.rut}` : ""}{!supplier.isActive ? " · Inactivo (actual)" : ""}
+                  </option>
+                ))}
+              </select>
+              {suppliersQuery.isError && <span className="text-xs text-destructive">No se pudieron cargar los proveedores.</span>}
+            </Field>
+            <Field label="Unidad de medida">
+              <Input value={form.unit ?? ""} onChange={(event) => update("unit", event.target.value || null)} placeholder="Ej.: unidad, frasco, kg" />
             </Field>
             <CategoryPicker
               value={form.categoryId ? String(form.categoryId) : "none"}
@@ -1206,6 +1256,20 @@ function ProductDialog({
               />
             </Field>
           </div>
+          {isMedicine && (
+            <section className="space-y-3 rounded-lg border p-4">
+              <div><h3 className="text-sm font-medium">Datos farmacéuticos</h3><p className="text-xs text-muted-foreground">Opcionales; solo se muestran para categorías de medicamentos.</p></div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Principio activo"><Input value={form.activeIngredient ?? ""} onChange={(event) => update("activeIngredient", event.target.value || null)} /></Field>
+                <Field label="Concentración"><Input value={form.concentration ?? ""} onChange={(event) => update("concentration", event.target.value || null)} placeholder="Ej.: 50 mg/ml" /></Field>
+                <Field label="Presentación farmacéutica"><Input value={form.dosageForm ?? ""} onChange={(event) => update("dosageForm", event.target.value || null)} placeholder="Ej.: comprimido, solución" /></Field>
+                <Field label="Laboratorio"><Input value={form.laboratory ?? ""} onChange={(event) => update("laboratory", event.target.value || null)} /></Field>
+                <Field label="Especies indicadas"><Input value={form.indicatedSpecies ?? ""} onChange={(event) => update("indicatedSpecies", event.target.value || null)} placeholder="Ej.: caninos, felinos" /></Field>
+                <Field label="Vía de administración"><Input value={form.administrationRoute ?? ""} onChange={(event) => update("administrationRoute", event.target.value || null)} placeholder="Ej.: oral, tópica" /></Field>
+              </div>
+              <CheckboxField label="Requiere receta" checked={form.requiresPrescription ?? false} onChange={(checked) => update("requiresPrescription", checked)} />
+            </section>
+          )}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Field label="Tipo de precio">
               <select
@@ -1257,16 +1321,18 @@ function ProductDialog({
                 }
               />
             </Field>
-            <Field label="Stock inicial">
+            <Field label={product ? "Stock actual" : "Stock inicial"}>
               <Input
                 type="number"
                 min="0"
                 step="1"
                 value={form.stock}
+                disabled={Boolean(product)}
                 onChange={(event) =>
                   update("stock", Number(event.target.value))
                 }
               />
+              {product && <span className="text-xs text-muted-foreground">Para cambiar stock, usa la acción de ajuste.</span>}
             </Field>
             <Field label="Stock mínimo">
               <Input
@@ -1838,6 +1904,18 @@ function productForm(product: Product | null): ProductPayload {
     name: product?.name ?? "",
     description: product?.description ?? undefined,
     sku: product?.sku ?? undefined,
+    barcode: product?.barcode ?? undefined,
+    brand: product?.brand ?? undefined,
+    supplier: product?.supplier ?? undefined,
+    supplierId: product?.supplierId ?? null,
+    unit: product?.unit ?? undefined,
+    activeIngredient: product?.activeIngredient ?? undefined,
+    concentration: product?.concentration ?? undefined,
+    dosageForm: product?.dosageForm ?? undefined,
+    laboratory: product?.laboratory ?? undefined,
+    indicatedSpecies: product?.indicatedSpecies ?? undefined,
+    administrationRoute: product?.administrationRoute ?? undefined,
+    requiresPrescription: product?.requiresPrescription ?? undefined,
     categoryId: product?.categoryId ?? undefined,
     subcategoryId: product?.subcategoryId ?? undefined,
     priceType: product?.priceType ?? "FIXED",

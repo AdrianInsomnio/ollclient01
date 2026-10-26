@@ -12,6 +12,7 @@ import {
   CalendarClock,
   ShoppingCart,
   Printer,
+  Truck,
   LucideIcon,
 } from "lucide-react";
 
@@ -53,6 +54,7 @@ const iconMap: Record<string, LucideIcon> = {
   CalendarClock,
   ShoppingCart,
   Printer,
+  Truck,
 };
 
 export function getIcon(name: string): LucideIcon {
@@ -152,8 +154,13 @@ export const adminSidebar: MenuGroup[] = [
     icon: "Package",
     items: [
       {
+        href: "/workstation/admin/pharmacy",
+        label: "Farmacia",
+        icon: "Package",
+      },
+      {
         href: "/workstation/admin/inventory",
-        label: "Productos",
+        label: "Productos y stock",
         icon: "Package",
       },
       {
@@ -224,6 +231,11 @@ export const adminSidebar: MenuGroup[] = [
         href: "/workstation/admin/settings",
         label: "Ajustes",
         icon: "Settings",
+      },
+      {
+        href: "/workstation/admin/settings/suppliers",
+        label: "Proveedores",
+        icon: "Truck",
       },
       {
         href: "/workstation/admin/planes",
