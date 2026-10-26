@@ -713,7 +713,7 @@ function ReceiptPreview({ editor, activeVersion }: { editor: EditorState; active
         <CardDescription>{activeVersion ? `Versión ${activeVersion.version} · ${activeVersion.status}` : "Muestra local"}</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className={`mx-auto bg-white p-5 text-[11px] text-slate-800 shadow-sm ring-1 ring-slate-200 ${editor.paperSize === "A4" || editor.paperSize === "LETTER" ? "max-w-[500px]" : "max-w-[280px]"}`}>
+        <div className={`mx-auto bg-white p-5 text-[11px] text-slate-800 shadow-sm ring-1 ring-slate-200 ${editor.paperSize === "A4" || editor.paperSize === "LETTER" ? "max-w-125" : "max-w-70"}`}>
           {elements.length > 0 ? (
             elements.map((el: any) => <div key={el.id}>{renderElement(el)}</div>)
           ) : (
