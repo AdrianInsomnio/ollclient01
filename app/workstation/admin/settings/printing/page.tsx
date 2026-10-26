@@ -136,7 +136,7 @@ export default function PrintingSettingsPage() {
     setLoading(true)
     setError(null)
     try {
-      const loadData = async <T>(fn: () => Promise<T>, setter: (data: T) => void, resourceName: string) => {
+      const loadData = async <T,>(fn: () => Promise<T>, setter: (data: T) => void, resourceName: string) => {
         try {
           const data = await fn();
           setter(data);
