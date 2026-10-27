@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -278,7 +278,7 @@ export function PetDetailView({ audience = 'client' }: { audience?: 'client' | '
   const [consultorioId, setConsultorioId] = useState('')
   const [slot, setSlot] = useState({ startAt: '', endAt: '' })
   const [startError, setStartError] = useState('')
-  const pendingConsultationId = useRef<string | number | null>(null)
+  const [pendingConsultationId, setPendingConsultationId] = useState<string | number | null>(null)
 
   const { data: pet, isLoading: loadingPet } = useQuery({
     queryKey: ['pet', petId],
@@ -304,14 +304,14 @@ export function PetDetailView({ audience = 'client' }: { audience?: 'client' | '
       if (!pet) throw new Error('No se pudo cargar la mascota.')
       if (!consultorioId) throw new Error('Selecciona un consultorio disponible.')
 
-      let consultationId = pendingConsultationId.current
+      let consultationId = pendingConsultationId
       if (!consultationId) {
         const consultation = await openConsultation({
           clientId: pet.clientId,
           petId: pet.id,
         })
         consultationId = consultation.id
-        pendingConsultationId.current = consultationId
+        setPendingConsultationId(consultationId)
       }
 
       await setVeterinarianAvailability({ available: false })
@@ -320,7 +320,7 @@ export function PetDetailView({ audience = 'client' }: { audience?: 'client' | '
         startAt: slot.startAt,
         endAt: slot.endAt,
       })
-      pendingConsultationId.current = null
+      setPendingConsultationId(null)
       return assigned
     },
     onSuccess: async (consultation) => {
@@ -643,7 +643,7 @@ export function PetDetailView({ audience = 'client' }: { audience?: 'client' | '
         <Dialog
           open={startDialogOpen}
           onOpenChange={(open) => {
-            if (!open && pendingConsultationId.current) return
+            if (!open && pendingConsultationId) return
             setStartDialogOpen(open)
           }}
         >
@@ -695,7 +695,7 @@ export function PetDetailView({ audience = 'client' }: { audience?: 'client' | '
                 </select>
               )}
               {startError && <p role="alert" className="text-sm text-destructive">{startError}</p>}
-              {pendingConsultationId.current && (
+              {pendingConsultationId && (
                 <p className="text-xs text-muted-foreground">
                   La atención ya fue creada. Elige un consultorio para completar la asignación sin duplicarla.
                 </p>
@@ -703,11 +703,11 @@ export function PetDetailView({ audience = 'client' }: { audience?: 'client' | '
             </div>
 
             <DialogFooter>
-              {pendingConsultationId.current && !startConsultationMutation.isPending && (
+              {pendingConsultationId && !startConsultationMutation.isPending && (
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => router.push(`/workstation/vet/consultas/${pendingConsultationId.current}`)}
+                  onClick={() => router.push(`/workstation/vet/consultas/${pendingConsultationId}`)}
                 >
                   Continuar sin consultorio
                 </Button>
@@ -716,7 +716,7 @@ export function PetDetailView({ audience = 'client' }: { audience?: 'client' | '
                 type="button"
                 variant="outline"
                 onClick={() => setStartDialogOpen(false)}
-                disabled={startConsultationMutation.isPending || Boolean(pendingConsultationId.current)}
+                disabled={startConsultationMutation.isPending || Boolean(pendingConsultationId)}
               >
                 Cancelar
               </Button>
@@ -726,7 +726,7 @@ export function PetDetailView({ audience = 'client' }: { audience?: 'client' | '
                 disabled={!consultorioId || startConsultationMutation.isPending || availableConsultoriosQuery.isLoading || availableConsultoriosQuery.isError}
               >
                 {startConsultationMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-                {startConsultationMutation.isPending ? 'Iniciando...' : pendingConsultationId.current ? 'Reintentar asignación' : 'Iniciar atención'}
+                {startConsultationMutation.isPending ? 'Iniciando...' : pendingConsultationId ? 'Reintentar asignación' : 'Iniciar atención'}
               </Button>
             </DialogFooter>
           </DialogContent>

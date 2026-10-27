@@ -50,7 +50,10 @@ const PAGE_WIDTHS: Record<string, { chars: number; px: number }> = {
 
 function getPathValue(path: string | undefined): unknown {
   if (!path) return undefined;
-  return path.replace(/\[\]/g, '').split('.').reduce<any>((value, key) => value?.[key], SAMPLE_DATA);
+  return path.replace(/\[\]/g, '').split('.').reduce<unknown>((value, key) => {
+    if (typeof value !== 'object' || value === null) return undefined;
+    return (value as Record<string, unknown>)[key];
+  }, SAMPLE_DATA);
 }
 
 function formatValue(value: unknown): string {

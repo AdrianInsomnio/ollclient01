@@ -70,7 +70,7 @@ const BlockEditor: React.FC<{
     ? removeElementFromGroup(parentId, block.id)
     : removeBlock(block.id);
 
-  const updateProperty = (key: keyof PrintElement['properties'], value: any) => {
+  const updateProperty = (key: keyof PrintElement['properties'], value: PrintElement['properties'][keyof PrintElement['properties']]) => {
     updateElement({
       properties: { ...properties, [key]: value }
     });
@@ -80,7 +80,7 @@ const BlockEditor: React.FC<{
     const leftChildren = block.children?.filter(child => child.properties?.alignment === 'left') || [];
     const rightChildren = block.children?.filter(child => child.properties?.alignment === 'right') || [];
     const sharedProperties = block.properties || { alignment: 'left' };
-    const updateSharedProperty = (key: keyof PrintElement['properties'], value: any) =>
+    const updateSharedProperty = (key: keyof PrintElement['properties'], value: PrintElement['properties'][keyof PrintElement['properties']]) =>
       updateBlock(block.id, { properties: { ...sharedProperties, [key]: value } });
 
     return (

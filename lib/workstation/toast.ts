@@ -4,7 +4,7 @@
 import { toast } from "sonner"
 
 import { formatMoney, type Cents } from "./money"
-import type { PaymentMethodOption } from "@/components/workstation"
+type PaymentMethodOption = "CASH" | "DEBIT_CARD" | "CREDIT_CARD" | "BANK_TRANSFER" | "MERCADO_PAGO"
 
 const paymentLabel: Record<PaymentMethodOption, string> = {
   CASH: "Efectivo",

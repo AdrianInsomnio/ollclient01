@@ -11,6 +11,11 @@ import { ApiError } from '@/lib/api-client';
 export type PaperSize = 'THERMAL_58' | 'THERMAL_80' | 'A4' | 'LETTER';
 export type TemplateStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
 
+const toPaperSize = (value?: string): PaperSize =>
+  value === 'THERMAL_58' || value === 'THERMAL_80' || value === 'A4' || value === 'LETTER'
+    ? value
+    : 'THERMAL_80';
+
 export interface PrintTemplateState {
   id: string;
   name: string;
@@ -162,7 +167,7 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
         version: latestVersion + 1,
         status: 'DRAFT',
         paperType: template.pageSize.startsWith('THERMAL') ? 'THERMAL' : 'SHEET',
-        paperSize: template.pageSize as any,
+        paperSize: template.pageSize,
         orientation: 'PORTRAIT',
         definition: { elements: template.layout, globalSettings: { defaultAlignment: 'left' } }
       });
@@ -198,7 +203,7 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
           name: found.name,
           templateKey: found.templateKey,
           documentType: found.documentType,
-          pageSize: (version?.paperSize as any) || 'THERMAL_80',
+          pageSize: toPaperSize(version?.paperSize),
           layout: normalizeElementIds(definition?.elements || definition?.layout || []),
           status: version?.status,
           versionId: version?.id,
@@ -231,6 +236,8 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
       });
       setEditingTemplateId(null);
       const definition = sourceVersion?.definition as { elements?: PrintElement[]; layout?: PrintElement[]; globalSettings?: Record<string, unknown> } | undefined;
+      const defaultAlignment = definition?.globalSettings?.defaultAlignment;
+      const fontFamily = definition?.globalSettings?.fontFamily;
       const version = await PrintingAPI.createPrintingTemplateVersion({
         templateId: cloned.id,
         version: 1,
@@ -239,7 +246,10 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
         paperSize: sourceVersion?.paperSize || 'THERMAL_80',
         orientation: sourceVersion?.orientation || 'PORTRAIT',
         definition: {
-          ...(definition?.globalSettings ? { globalSettings: { ...definition.globalSettings } } : {}),
+          globalSettings: {
+            defaultAlignment: defaultAlignment === 'center' || defaultAlignment === 'right' ? defaultAlignment : 'left',
+            ...(typeof fontFamily === 'string' ? { fontFamily } : {}),
+          },
           elements: normalizeElementIds(structuredClone(definition?.elements || definition?.layout || [])),
         },
       });

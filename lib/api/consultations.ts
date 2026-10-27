@@ -80,7 +80,9 @@ export interface Sale {
   discount: number;
   tax: number;
   total: number;
-    paymentMethod?: string;
+  status?: 'DRAFT' | 'WAITING' | 'CONFIRMED' | 'CANCELLED';
+  notes?: string | null;
+  paymentMethod?: string;
   items: ConsultationItem[];
 }
 
@@ -103,7 +105,7 @@ export interface AddConsultationItemPayload {
 
 export interface CloseConsultationPayload {
   items: AddConsultationItemPayload[];
-  paymentMethod: string;
+  paymentMethod?: string;
   payments?: Array<{
     method: string;
     amount: number;

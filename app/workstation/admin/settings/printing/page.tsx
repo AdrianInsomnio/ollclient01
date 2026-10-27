@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
-import { AlertCircle, CheckCircle2, FileText, LoaderCircle, Printer, RefreshCw, Save, Send, Plus, RotateCcw, History, MapPin, Trash2, Settings2, Edit, Copy } from "lucide-react"
+import { AlertCircle, CheckCircle2, FileText, LoaderCircle, Printer, RefreshCw, Save, Send, Plus, RotateCcw, History, MapPin, Trash2, Settings2 } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,22 +17,6 @@ import {
   DialogHeader, 
   DialogTitle 
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { ApiError } from "@/lib/api-client"
 import { 
   createPrintingAsset, 
@@ -55,6 +38,11 @@ import {
   type PrintPaperSize, 
   type PrintTarget, 
   type PrintTemplate,
+  type PrintTemplateVersion,
+  type PrintBatch,
+  type PrintRule,
+  type PrintOrientation,
+  type PrintPaperType,
   type PrintLocation,
   getPrintingRules,
   createPrintingRule,
@@ -64,7 +52,8 @@ import {
   PrintElementType, 
   PrintElement, 
   PrintTemplateDefinition, 
-  PRINT_FIELDS_REGISTRY 
+  PRINT_FIELDS_REGISTRY,
+  type PrintElementProperties,
 } from "@/lib/printing/design-system"
 
 const sampleItems = [
@@ -79,17 +68,22 @@ type EditorState = {
   paperSize: PrintPaperSize;
   definition: PrintTemplateDefinition;
 }
-type RuleState = { event: string; targetId: string; templateKey: string; priority: number }
+type PreviewData = {
+  company: { name: string; address: string }
+  document: { number: string; date: string }
+  customer: { name: string; document: string }
+  totals: { subtotal: number; discount: number; tax: number; total: number }
+  payments: Array<{ method: string; amount: number }>
+}
 
 export default function PrintingSettingsPage() {
-  const router = useRouter()
   const [templates, setTemplates] = useState<PrintTemplate[]>([])
   const [targets, setTargets] = useState<PrintTarget[]>([])
   const [printers, setPrinters] = useState<Array<{ id: number; name: string; paperSize: string; status: string }>>([])
   const [locations, setLocations] = useState<PrintLocation[]>([])
-  const [rules, setRules] = useState<any[]>([])
+  const [rules, setRules] = useState<PrintRule[]>([])
   const [assets, setAssets] = useState<PrintAsset[]>([])
-  const [batches, setBatches] = useState<any[]>([])
+  const [batches, setBatches] = useState<PrintBatch[]>([])
   const [agentUrl, setAgentUrl] = useState("http://localhost:3333")
   const [agentApiKey, setAgentApiKey] = useState("")
   const [testPaperSize, setTestPaperSize] = useState<PrintPaperSize>("THERMAL_80")
@@ -99,12 +93,6 @@ export default function PrintingSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
-  // Detail and Confirm States
-  const [isDetailOpen, setIsDetailOpen] = useState(false)
-  const [detailTemplate, setDetailTemplate] = useState<PrintTemplate | null>(null)
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
-  const [confirmAction, setConfirmAction] = useState<{ type: 'modify' | 'delete'; templateId: number } | null>(null)
-
   const [editor, setEditor] = useState<EditorState>({ 
     name: "Ticket de venta", 
     templateKey: "sale-default", 
@@ -153,7 +141,7 @@ export default function PrintingSettingsPage() {
         loadData(getPrintingAssets, setAssets, "Assets"),
         loadData(() => listPrintingBatches(50), setBatches, "Batches"),
         loadData(getPrintingLocations, setLocations, "Locations"),
-        loadData(() => getPrintingRules?.() || Promise.resolve([]), setRules, "Rules"),
+        loadData(getPrintingRules, setRules, "Rules"),
       ]);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "No se pudo cargar la configuración de impresión")
@@ -167,25 +155,7 @@ export default function PrintingSettingsPage() {
   const openTargetModal = async () => { await load(); setIsTargetModalOpen(true); };
   const openRuleModal = async () => { await load(); setIsRuleModalOpen(true); };
 
-  function selectTemplate(template: PrintTemplate) {
-    setDetailTemplate(template)
-    setIsDetailOpen(true)
-  }
-
-  async function handleSoftDelete(id: number) {
-    try {
-      // Assuming the API endpoint follows the pattern or there's a generic patch
-      // Since the user specified "disable" not "permanent delete"
-      // we use a hypothetic update endpoint or modify current delete if it's soft
-      await deletePrintingTemplate(id) // I will check if deletePrintingTemplate is available or needs to be added to api/printing
-      toast.success("Template deshabilitado correctamente")
-      await load()
-    } catch (cause) { 
-      toast.error(cause instanceof ApiError ? cause.message : "No se pudo deshabilitar el template") 
-    } finally {
-      setIsConfirmOpen(false)
-    }
-  }
+  function selectTemplate(template: PrintTemplate) { setSelectedId(template.id) }
 
   async function createTemplate() {
     try {
@@ -218,10 +188,10 @@ export default function PrintingSettingsPage() {
       await createPrintingTemplateVersion({
         templateId: selected.id,
         version: Number(form.get("version")),
-        status: String(form.get("status")),
+        status: String(form.get("status")) as PrintTemplateVersion["status"],
         paperType: editor.paperSize.startsWith("THERMAL") ? "THERMAL" : "SHEET",
         paperSize: editor.paperSize,
-        orientation: String(form.get("orientation") || "PORTRAIT"),
+        orientation: String(form.get("orientation") || "PORTRAIT") as PrintOrientation,
         definition: editor.definition
       })
       toast.success("Nueva versión guardada")
@@ -326,12 +296,12 @@ export default function PrintingSettingsPage() {
       await createPrintingPrinter({
         name: String(form.get("name") || ""),
         locationId: Number(form.get("locationId")),
-        printAgentId: form.get("agentId") ? Number(form.get("agentId")) : null,
-        profileId: form.get("profileId") ? Number(form.get("profileId")) : null,
+        ...(form.get("agentId") ? { printAgentId: Number(form.get("agentId")) } : {}),
+        ...(form.get("profileId") ? { profileId: Number(form.get("profileId")) } : {}),
         printerType: String(form.get("type")),
-        paperType: String(form.get("paperType")),
-        paperSize: String(form.get("paperSize")),
-        orientation: String(form.get("orientation") || "PORTRAIT")
+        paperType: String(form.get("paperType")) as PrintPaperType,
+        paperSize: String(form.get("paperSize")) as PrintPaperSize,
+        orientation: String(form.get("orientation") || "PORTRAIT") as PrintOrientation
       })
       toast.success("Impresora registrada")
       setIsPrinterModalOpen(false)
@@ -347,7 +317,7 @@ export default function PrintingSettingsPage() {
         code: String(form.get("code") || ""),
         name: String(form.get("name") || ""),
         locationId: Number(form.get("locationId")),
-        printerId: form.get("printerId") ? Number(form.get("printerId")) : null
+        ...(form.get("printerId") ? { printerId: Number(form.get("printerId")) } : {})
       })
       toast.success("Destino creado")
       setIsTargetModalOpen(false)
@@ -565,7 +535,7 @@ export default function PrintingSettingsPage() {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="divide-y">
-                  {batch.jobs.map((job: any) => (
+          {batch.jobs.map((job) => (
                     <div key={job.id} className="flex items-center justify-between p-3 text-sm">
                       <div className="flex items-center gap-3">
                         <Badge variant="outline" className="text-[10px]">{job.status}</Badge>
@@ -603,8 +573,8 @@ export default function PrintingSettingsPage() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="grid gap-1.5"><Label>{label}</Label>{children}</div> }
 function StatusCard({ icon: Icon, title, detail, variant }: { icon: typeof CheckCircle2, title: string, detail: string, variant: "success" | "info" | "neutral" }) { return <Card size="sm"><CardContent className="flex items-center gap-3"><Icon className="size-5 text-muted-foreground" /><div><p className="font-medium">{title}</p><p className="text-xs text-muted-foreground">{detail}</p></div><Badge className="ml-auto" variant={variant}>OK</Badge></CardContent></Card> }
-function ReceiptPreview({ editor, activeVersion }: { editor: EditorState; activeVersion?: any }) {
-  const mockData = {
+function ReceiptPreview({ editor, activeVersion }: { editor: EditorState; activeVersion?: PrintTemplateVersion }) {
+  const mockData: PreviewData = {
     company: { name: "Clínica Veterinaria", address: "Calle Falsa 123" },
     document: { number: "1542", date: "2026-10-06" },
     customer: { name: "Juan Pérez", document: "12345678" },
@@ -612,23 +582,28 @@ function ReceiptPreview({ editor, activeVersion }: { editor: EditorState; active
     payments: [{ method: "CASH", amount: 1370 }]
   };
 
-  const evaluateCondition = (condition: string | undefined, data: any) => {
+  const evaluateCondition = (condition: string | undefined, data: PreviewData) => {
     if (!condition) return true;
     try {
       // Implementación simple de evaluación de condiciones (ej: 'totals.discount > 0')
       const [path, operator, value] = condition.split(' ');
-      const getValue = (obj: any, path: string) => {
-        return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+      const getValue = (obj: PreviewData, valuePath: string): string | number | boolean | undefined => {
+        const result = valuePath.split('.').reduce<unknown>((acc, part) => {
+          return typeof acc === 'object' && acc !== null
+            ? (acc as Record<string, unknown>)[part]
+            : undefined
+        }, obj)
+        return typeof result === 'string' || typeof result === 'number' || typeof result === 'boolean' ? result : undefined
       };
       
       const actualValue = getValue(data, path);
       const targetValue = parseFloat(value);
 
       switch (operator) {
-        case '>': return actualValue > targetValue;
-        case '<': return actualValue < targetValue;
-        case '==': return actualValue == targetValue;
-        case '!=': return actualValue != targetValue;
+        case '>': return typeof actualValue === 'number' && actualValue > targetValue;
+        case '<': return typeof actualValue === 'number' && actualValue < targetValue;
+        case '==': return String(actualValue) === value;
+        case '!=': return String(actualValue) !== value;
         default: return true;
       }
     } catch (e) {
@@ -637,7 +612,7 @@ function ReceiptPreview({ editor, activeVersion }: { editor: EditorState; active
     }
   };
 
-  const renderElement = (el: any) => {
+  const renderElement = (el: PrintElement): React.ReactNode => {
     if (!evaluateCondition(el.properties?.visibleIf, mockData)) return null;
 
     const style: React.CSSProperties = {
@@ -652,7 +627,7 @@ function ReceiptPreview({ editor, activeVersion }: { editor: EditorState; active
       case 'COLUMN_GROUP':
         return (
           <div style={{ display: 'flex', flexDirection: 'row', width: '100%', gap: '4px' }}>
-            {el.children?.map((child: any) => (
+            {el.children?.map((child) => (
               <div 
                 key={child.id} 
                 style={{ 
@@ -694,16 +669,14 @@ function ReceiptPreview({ editor, activeVersion }: { editor: EditorState; active
     
     // Backward compatibility: if definition is just an array of strings
     if (Array.isArray(activeVersion.definition)) {
-      return activeVersion.definition.map((type: string, i: number) => ({
-        id: `legacy-${i}`,
-        type: type === 'BUSINESS_LOGO' ? 'LOGO' : type === 'DOCUMENT_NUMBER' ? 'TEXT' : type === 'ITEMS' ? 'ITEM_LIST' : type === 'TOTALS' ? 'TOTALS' : 'TEXT',
-        properties: { alignment: 'left' },
-        label: type
-      }));
+      return activeVersion.definition.map((type, i) => {
+        const elementType: PrintElement['type'] = type === 'BUSINESS_LOGO' ? 'LOGO' : type === 'DOCUMENT_NUMBER' ? 'TEXT' : type === 'ITEMS' ? 'ITEM_LIST' : type === 'TOTALS' ? 'TOTALS' : 'TEXT'
+        return { id: `legacy-${i}`, type: elementType, properties: { alignment: 'left' as const }, label: type }
+      })
     }
     
     // New structured definition
-    return activeVersion.definition.elements || [];
+      return activeVersion.definition.elements || [];
   }, [activeVersion]);
 
   return (
@@ -715,7 +688,7 @@ function ReceiptPreview({ editor, activeVersion }: { editor: EditorState; active
       <CardContent>
         <div className={`mx-auto bg-white p-5 text-[11px] text-slate-800 shadow-sm ring-1 ring-slate-200 ${editor.paperSize === "A4" || editor.paperSize === "LETTER" ? "max-w-125" : "max-w-70"}`}>
           {elements.length > 0 ? (
-            elements.map((el: any) => <div key={el.id}>{renderElement(el)}</div>)
+            elements.map((el) => <div key={el.id}>{renderElement(el)}</div>)
           ) : (
             <div className="text-center text-slate-400 py-10 italic">Sin elementos definidos en el template</div>
           )}

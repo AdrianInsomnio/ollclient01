@@ -206,7 +206,7 @@ export default function VetQueuePage() {
   const selectedTriage = selected && Boolean(selected.weight || selected.temperature || selected.symptoms)
   const selectedStatus = selected ? statusFor(selected) : ''
   const detailHref = selected ? '/workstation/vet/consultas/' + selected.id : '#'
-  const recentActivity = useMemo(() => {
+  const recentActivity = useMemo<Array<{ label: string; time: string; detail?: string }>>(() => {
     if (!selected) return []
     const historyEntry = historyQuery.data?.consultations.find((entry) => Number(entry.id) === Number(selected.id))
     const logged = (historyEntry?.activities ?? []).filter((activity) => ['CONSULTATION_STARTED', 'CONSULTATION_ENDED'].includes(activity.action))

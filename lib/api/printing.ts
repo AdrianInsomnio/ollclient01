@@ -1,4 +1,5 @@
 import { get, post } from "../api-client"
+import type { PrintTemplateDefinition } from "../printing/design-system"
 
 export type PrintPaperType = "THERMAL" | "SHEET"
 export type PrintPaperSize = "THERMAL_58" | "THERMAL_80" | "A4" | "LETTER" | "A5" | "LEGAL" | "CUSTOM"
@@ -9,9 +10,12 @@ export interface PrintAgent { id: number; name: string; endpoint: string | null;
 export interface PrinterProfile { id: number; name: string; printerType: string; paperTypes: string[]; capabilities: Record<string, boolean> }
 export interface Printer { id: number; name: string; status: string; printerType: string; paperType: PrintPaperType; paperSize: PrintPaperSize; orientation: PrintOrientation; location?: PrintLocation | null; printAgent?: PrintAgent | null; profile?: PrinterProfile | null }
 export interface PrintTarget { id: number; code: string; name: string; location?: PrintLocation | null; printer?: Printer | null }
-export interface PrintTemplateVersion { id: number; version: number; status: "DRAFT" | "ACTIVE" | "ARCHIVED"; paperType: PrintPaperType; paperSize: PrintPaperSize; orientation: PrintOrientation; definition: Record<string, unknown>; createdAt?: string }
+export interface PrintTemplateVersion { id: number; version: number; status: "DRAFT" | "ACTIVE" | "ARCHIVED"; paperType: PrintPaperType; paperSize: PrintPaperSize; orientation: PrintOrientation; definition: PrintTemplateDefinition | string[]; createdAt?: string }
 export interface PrintTemplate { id: number; templateKey: string; name: string; documentType: string; isActive: boolean; versions: PrintTemplateVersion[] }
 export interface PrintAsset { id: number; name: string; storageKey: string; mimeType: string; width: number | null; height: number | null }
+export interface PrintRule { id: number; event: string; targetId: number; templateKey: string; priority: number; isActive: boolean }
+export interface PrintJob { id: number; status: string; targetId: number; lastError?: string | null }
+export interface PrintBatch { id: number; sourceDocumentType: string; status: string; createdAt: string; jobs: PrintJob[] }
 
 export const getPrintingTemplates = () => get<PrintTemplate[]>("/printing/templates")
 export const getPrintingLocations = () => get<PrintLocation[]>("/printing/locations")
@@ -20,7 +24,7 @@ export const getPrintingProfiles = () => get<PrinterProfile[]>("/printing/profil
 export const getPrintingPrinters = () => get<Printer[]>("/printing/printers")
 export const getPrintingTargets = () => get<PrintTarget[]>("/printing/targets")
 export const getPrintingAssets = () => get<PrintAsset[]>("/printing/assets")
-export const getPrintingRules = () => get<any[]>("/printing/rules")
+export const getPrintingRules = () => get<PrintRule[]>("/printing/rules")
 
 export const createPrintingTemplate = (data: Pick<PrintTemplate, "templateKey" | "name" | "documentType">) =>
   post<PrintTemplate>("/printing/templates", data)
@@ -47,7 +51,7 @@ export const createPrintingTarget = (data: {
 }) => post<PrintTarget>("/printing/targets", data)
 
 export const deletePrintingLocation = (id: number) =>
-  post<any>(`/printing/locations/${id}/delete`, {})
+	post<{ id: number; isActive?: boolean }>(`/printing/locations/${id}/delete`, {})
 
 export const deactivatePrintingTemplate = (id: number) =>
   post<{ id: number; resource: 'templates'; isActive: false }>(`/printing/config/templates/${id}/deactivate`, {})
@@ -55,10 +59,10 @@ export const deactivatePrintingTemplate = (id: number) =>
 export const deletePrintingTemplate = deactivatePrintingTemplate
 
 export const createPrintingRule = (data: { event: string; targetId: number; templateKey: string; priority?: number }) =>
-  post<any>("/printing/rules", data)
+	post<PrintRule>("/printing/rules", data)
 
 export const deletePrintingRule = (id: number) =>
-  post<any>(`/printing/rules/${id}/delete`, {})
+	post<{ id: number; isActive?: boolean }>(`/printing/rules/${id}/delete`, {})
 
 export const createPrintingTemplateVersion = (data: Omit<PrintTemplateVersion, "id" | "createdAt"> & { templateId: number }) =>
   post<PrintTemplateVersion>("/printing/templates/versions", data)
@@ -73,10 +77,10 @@ export const createPrintingAsset = (data: Pick<PrintAsset, "name" | "storageKey"
   post<PrintAsset>("/printing/assets", data)
 
 export const listPrintingBatches = (take: number = 50) => 
-  get<any[]>(`/printing/batches?take=${take}`)
+	get<PrintBatch[]>(`/printing/batches?take=${take}`)
 
 export const retryPrintingJob = (jobId: number) => 
-  post<any>(`/printing/jobs/${jobId}/retry`, {})
+	post<PrintJob>(`/printing/jobs/${jobId}/retry`, {})
 
 
 
