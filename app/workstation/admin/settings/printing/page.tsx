@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { AlertCircle, CheckCircle2, FileText, LoaderCircle, Printer, RefreshCw, Save, Send, Plus, RotateCcw, History, MapPin, Trash2, Pencil } from "lucide-react"
 import { toast } from "sonner"
@@ -81,6 +81,16 @@ type PreviewData = {
   payments: Array<{ method: string; amount: number }>
 }
 
+type PrintingResource = "templates" | "targets" | "printers" | "assets" | "batches" | "locations" | "rules"
+
+const resourcesByTab: Record<string, PrintingResource[]> = {
+  rules: ["templates", "targets", "rules"],
+  templates: ["templates"],
+  targets: ["targets", "printers", "locations"],
+  assets: ["assets"],
+  history: ["batches"],
+}
+
 export default function PrintingSettingsPage() {
   const [templates, setTemplates] = useState<PrintTemplate[]>([])
   const [targets, setTargets] = useState<PrintTarget[]>([])
@@ -124,7 +134,8 @@ export default function PrintingSettingsPage() {
   const [editingRule, setEditingRule] = useState<PrintRule | null>(null)
   const [savingRule, setSavingRule] = useState(false)
   const [activeTab, setActiveTab] = useState("rules")
-  const loadInFlight = useRef<Promise<void> | null>(null)
+  const loadedResources = useRef(new Set<PrintingResource>())
+  const resourceRequests = useRef(new Map<PrintingResource, Promise<void>>())
 
   const selected = useMemo(() => templates.find((template) => template.id === selectedId) ?? null, [selectedId, templates])
   const activeVersion = selected?.versions?.[0]
@@ -132,43 +143,56 @@ export default function PrintingSettingsPage() {
   const onlineTargets = activeTargets.filter((target) => target.printer?.printAgent?.status === "ONLINE").length
   const isConnectedEvent = (event: string) => event === "SALE" || event === "CANCELLATION"
 
-  function load() {
-    if (loadInFlight.current) return loadInFlight.current
+  const load = useCallback(async (requested: PrintingResource[], force = false) => {
+    const pendingResources = requested.filter((resource) =>
+      force || resourceRequests.current.has(resource) || !loadedResources.current.has(resource)
+    )
+    if (pendingResources.length === 0) return
 
-    const request = (async () => {
-      setLoading(true)
-      setError(null)
-      const failedResources: string[] = []
-      const loadData = async <T,>(fn: () => Promise<T>, setter: (data: T) => void, resourceName: string) => {
-        try {
-          setter(await fn())
-        } catch (cause) {
-          const message = cause instanceof ApiError ? cause.message : "Error de red"
-          failedResources.push(`${resourceName}: ${message}`)
-          console.error(`Error cargando ${resourceName}:`, cause)
-        }
+    setLoading(true)
+    setError(null)
+    const failedResources: string[] = []
+    const resourceLabels: Record<PrintingResource, string> = {
+      templates: "Templates", targets: "Targets", printers: "Printers", assets: "Assets",
+      batches: "Historial", locations: "Ubicaciones", rules: "Reglas",
+    }
+    const fetchResource = async (resource: PrintingResource) => {
+      switch (resource) {
+        case "templates": setTemplates(await getPrintingTemplates()); break
+        case "targets": setTargets(await getPrintingTargets()); break
+        case "printers": setPrinters(await getPrintingPrinters()); break
+        case "assets": setAssets(await getPrintingAssets()); break
+        case "batches": setBatches(await listPrintingBatches(50)); break
+        case "locations": setLocations(await getPrintingLocations()); break
+        case "rules": setRules(await getPrintingRules()); break
       }
+      loadedResources.current.add(resource)
+    }
 
-      await Promise.all([
-        loadData(getPrintingTemplates, setTemplates, "Templates"),
-        loadData(getPrintingTargets, setTargets, "Targets"),
-        loadData(getPrintingPrinters, setPrinters, "Printers"),
-        loadData(getPrintingAssets, setAssets, "Assets"),
-        loadData(() => listPrintingBatches(50), setBatches, "Batches"),
-        loadData(getPrintingLocations, setLocations, "Locations"),
-        loadData(getPrintingRules, setRules, "Rules"),
-      ])
-      if (failedResources.length) setError(`No se pudo cargar ${failedResources.join("; ")}`)
-    })()
+    await Promise.all(pendingResources.map(async (resource) => {
+      if (!force && loadedResources.current.has(resource)) return
+      let request = resourceRequests.current.get(resource)
+      if (!request) {
+        request = fetchResource(resource)
+        resourceRequests.current.set(resource, request)
+      }
+      try {
+        await request
+      } catch (cause) {
+        const message = cause instanceof ApiError ? cause.message : "Error de red"
+        failedResources.push(`${resourceLabels[resource]}: ${message}`)
+        console.error(`Error cargando ${resourceLabels[resource]}:`, cause)
+      } finally {
+        if (resourceRequests.current.get(resource) === request) resourceRequests.current.delete(resource)
+      }
+    }))
 
-    loadInFlight.current = request.finally(() => {
-      setLoading(false)
-      loadInFlight.current = null
-    })
-    return loadInFlight.current
-  }
+    if (failedResources.length) setError(`No se pudo cargar ${failedResources.join("; ")}`)
+    setLoading(resourceRequests.current.size > 0)
+  }, [])
 
-  useEffect(() => { void load() }, [])
+  useEffect(() => { void load(resourcesByTab.rules) }, [load])
+  useEffect(() => { void load(resourcesByTab[activeTab] ?? resourcesByTab.rules) }, [activeTab, load])
 
   const openLocationModal = () => setIsLocationModalOpen(true);
   const openPrinterModal = () => setIsPrinterModalOpen(true);
@@ -180,9 +204,7 @@ export default function PrintingSettingsPage() {
     async function createTemplate() {
     try {
       const templateKey = editor.templateKey.trim()
-      const latestTemplates = await getPrintingTemplates()
-      setTemplates(latestTemplates)
-      const existing = latestTemplates.find((template) => template.templateKey === templateKey)
+      const existing = templates.find((template) => template.templateKey === templateKey)
       const created = existing ?? await createPrintingTemplate({ templateKey, name: editor.name, documentType: editor.documentType })
       const nextVersion = Math.max(0, ...(existing?.versions ?? []).map((version) => version.version)) + 1
       await createPrintingTemplateVersion({ 
@@ -196,7 +218,7 @@ export default function PrintingSettingsPage() {
       })
       setSelectedId(created.id)
       toast.success(existing ? `Se guardó la versión ${nextVersion} de la plantilla existente` : "Template creado con éxito")
-      await load()
+      await load(["templates"], true)
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "No se pudo crear el template") }
   }
 
@@ -216,7 +238,7 @@ export default function PrintingSettingsPage() {
       })
       toast.success("Nueva versión guardada")
       setIsVersionModalOpen(false)
-      await load()
+      await load(["templates"], true)
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al guardar versión") }
   }
 
@@ -227,7 +249,7 @@ export default function PrintingSettingsPage() {
       await createPrintingAsset({ name: String(form.get("assetName") || ""), storageKey: String(form.get("storageKey") || ""), mimeType: "image/png", width: null, height: null })
       toast.success("Asset registrado")
       event.currentTarget.reset()
-      await load()
+      await load(["assets"], true)
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "No se pudo registrar el asset") }
   }
 
@@ -247,7 +269,7 @@ export default function PrintingSettingsPage() {
       await deletePrintingTemplate(template.id)
       if (selectedId === template.id) setSelectedId(null)
       toast.success("Plantilla eliminada")
-      await load()
+      await load(["templates", "rules"], true)
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al eliminar plantilla") }
   }
 
@@ -308,7 +330,7 @@ export default function PrintingSettingsPage() {
       })
       toast.success("Ubicación creada")
       event.currentTarget.reset()
-      await load()
+      await load(["locations"], true)
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al crear ubicación") }
   }
 
@@ -316,7 +338,7 @@ export default function PrintingSettingsPage() {
     try {
       await deletePrintingLocation(id)
       toast.success("Ubicación eliminada")
-      await load()
+      await load(["locations"], true)
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al eliminar ubicación") }
   }
 
@@ -336,7 +358,7 @@ export default function PrintingSettingsPage() {
       })
       toast.success("Impresora registrada")
       setIsPrinterModalOpen(false)
-      await load()
+      await load(["printers", "targets"], true)
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al registrar impresora") }
   }
 
@@ -352,7 +374,7 @@ export default function PrintingSettingsPage() {
       })
       toast.success("Destino creado")
       setIsTargetModalOpen(false)
-      await load()
+      await load(["targets"], true)
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al crear destino") }
   }
 
@@ -368,7 +390,7 @@ export default function PrintingSettingsPage() {
       }
       setIsRuleModalOpen(false)
       setEditingRule(null)
-      await load()
+      await load(["rules"], true)
     } catch (cause) {
       toast.error(cause instanceof ApiError ? cause.message : cause instanceof Error ? cause.message : "Error al guardar regla")
       throw cause
@@ -379,7 +401,7 @@ export default function PrintingSettingsPage() {
     try {
       await updatePrintingRule(rule.id, { isActive: !rule.isActive })
       toast.success(rule.isActive ? "Regla desactivada" : "Regla activada")
-      await load()
+      await load(["rules"], true)
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "No se pudo cambiar el estado de la regla") }
   }
 
@@ -388,7 +410,7 @@ export default function PrintingSettingsPage() {
     try {
       await deletePrintingRule(id)
       toast.success("Regla eliminada")
-      await load()
+      await load(["rules"], true)
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al eliminar regla") }
   }
 
@@ -396,7 +418,7 @@ export default function PrintingSettingsPage() {
     try {
       await retryPrintingJob(jobId)
       toast.success("Reintento solicitado")
-      await load()
+      await load(["batches"], true)
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al reintentar trabajo") }
   }
 
@@ -404,7 +426,7 @@ export default function PrintingSettingsPage() {
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><p className="text-xs text-muted-foreground">Configuración / Hardware y periféricos / Reglas de salida</p><h2 className="mt-1 text-2xl font-semibold tracking-tight">Printing Core</h2><p className="mt-1 text-sm text-muted-foreground">Configura eventos, documentos de salida, plantillas y destinos físicos.</p></div>
       <div className="flex gap-2">
-        <Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />Actualizar estado</Button>
+        <Button variant="outline" onClick={() => void load(resourcesByTab[activeTab] ?? resourcesByTab.rules, true)} disabled={loading}><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />Actualizar estado</Button>
         <Button variant="outline" onClick={() => setActiveTab("targets")}>Configuración de impresoras</Button>
       </div>
     </div>
@@ -560,7 +582,7 @@ export default function PrintingSettingsPage() {
       <TabsContent value="history" className="space-y-5">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-medium">Historial de Impresiones</h3>
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="size-3 mr-2" />Actualizar</Button>
+          <Button variant="outline" size="sm" onClick={() => void load(["batches"], true)} disabled={loading}><RefreshCw className="size-3 mr-2" />Actualizar</Button>
         </div>
         <div className="grid gap-4">
           {loading ? <p className="text-sm text-muted-foreground">Cargando historial...</p> : batches.length === 0 ? <p className="text-sm text-muted-foreground">No hay registros de impresión.</p> : batches.map((batch) => (
