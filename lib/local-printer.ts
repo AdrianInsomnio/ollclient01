@@ -220,9 +220,7 @@ export function createSalePrintPayload(sale: Sale, printData?: SalePrintResponse
 
 export async function printSaleTicket(sale: Sale): Promise<void> {
   try {
-    const registered = await registerSalePrint(sale.id);
-    const payload = createSalePrintPayload(registered.sale, registered.printData);
-    await printConsultationTicket(payload);
+    await registerSalePrint(sale.id);
   } catch (error) {
     if (error instanceof TypeError && error.message === "Failed to fetch") {
       throw new Error(
@@ -234,7 +232,5 @@ export async function printSaleTicket(sale: Sale): Promise<void> {
 }
 
 export async function reprintSaleTicket(saleId: string | number, reason?: string): Promise<void> {
-  const registered = await registerSalePrint(saleId, reason);
-  const payload = createSalePrintPayload(registered.sale, registered.printData);
-  await printConsultationTicket(payload);
+  await registerSalePrint(saleId, reason);
 }

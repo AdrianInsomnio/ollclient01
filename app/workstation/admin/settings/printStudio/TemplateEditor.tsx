@@ -21,6 +21,32 @@ const BLOCK_TITLES: Partial<Record<PrintElementType, string>> = {
   SEPARATOR: 'Separador', ITEM_LIST: 'Lista de artículos', COLUMN_GROUP: 'Grupo de columnas',
 };
 
+const saleDetailLayout: PrintElement[] = [
+  { id: 'sale-business', type: 'HEADER', section: 'HEADER', fieldKey: 'company.name', properties: { alignment: 'center', fontSize: 'lg', fontWeight: 'bold', marginBottom: 2 } },
+  { id: 'sale-title', type: 'TEXT', section: 'HEADER', label: 'DETALLE DE VENTA', properties: { alignment: 'center', fontSize: 'md', fontWeight: 'bold', marginBottom: 2 } },
+  { id: 'sale-divider-header', type: 'SEPARATOR', section: 'HEADER', properties: { alignment: 'left', marginBottom: 1 } },
+  { id: 'sale-number', type: 'COLUMN_GROUP', section: 'DETAIL', properties: { alignment: 'left', fontWeight: 'bold' }, children: [
+    { id: 'sale-number-field', type: 'TEXT', fieldKey: 'document.number', label: 'Venta', properties: { alignment: 'left' } },
+    { id: 'sale-date-field', type: 'TEXT', fieldKey: 'document.date', label: 'Fecha', properties: { alignment: 'right' } },
+  ] },
+  { id: 'sale-customer', type: 'HEADER', section: 'DETAIL', fieldKey: 'customer.name', label: 'Cliente', properties: { alignment: 'left', fontWeight: 'bold' } },
+  { id: 'sale-customer-document', type: 'TEXT', section: 'DETAIL', fieldKey: 'customer.document', label: 'Documento', properties: { alignment: 'left' } },
+  { id: 'sale-customer-phone', type: 'TEXT', section: 'DETAIL', fieldKey: 'customer.phone', label: 'Teléfono', properties: { alignment: 'left' } },
+  { id: 'sale-pet', type: 'TEXT', section: 'DETAIL', fieldKey: 'context.petName', label: 'Mascota', properties: { alignment: 'left' } },
+  { id: 'sale-status', type: 'TEXT', section: 'DETAIL', fieldKey: 'context.status', label: 'Estado', properties: { alignment: 'left' } },
+  { id: 'sale-shift', type: 'TEXT', section: 'DETAIL', fieldKey: 'context.cashShift', label: 'Turno', properties: { alignment: 'left' } },
+  { id: 'sale-divider-items', type: 'SEPARATOR', section: 'DETAIL', properties: { alignment: 'left', marginTop: 1 } },
+  { id: 'sale-items', type: 'ITEM_LIST', section: 'DETAIL', label: 'ARTÍCULOS', properties: { alignment: 'left', fontWeight: 'normal' } },
+  { id: 'sale-divider-totals', type: 'SEPARATOR', section: 'FOOTER', properties: { alignment: 'left', marginTop: 1 } },
+  { id: 'sale-subtotal', type: 'TOTALS', section: 'FOOTER', fieldKey: 'totals.subtotal', label: 'Subtotal', properties: { alignment: 'right' } },
+  { id: 'sale-discount', type: 'TOTALS', section: 'FOOTER', fieldKey: 'totals.discount', label: 'Descuento', properties: { alignment: 'right' } },
+  { id: 'sale-tax', type: 'TOTALS', section: 'FOOTER', fieldKey: 'totals.tax', label: 'Impuestos', properties: { alignment: 'right' } },
+  { id: 'sale-total', type: 'TOTALS', section: 'FOOTER', fieldKey: 'totals.total', label: 'TOTAL', properties: { alignment: 'right', fontSize: 'lg', fontWeight: 'bold', marginTop: 1 } },
+  { id: 'sale-payments', type: 'PAYMENTS', section: 'FOOTER', label: 'PAGOS', properties: { alignment: 'left', marginTop: 1 } },
+  { id: 'sale-notes', type: 'TEXT', section: 'FOOTER', fieldKey: 'footer.notes', label: 'Notas', properties: { alignment: 'left', marginTop: 1 } },
+  { id: 'sale-thanks', type: 'TEXT', section: 'FOOTER', label: 'Gracias por su compra', properties: { alignment: 'center', fontWeight: 'bold', marginTop: 2 } },
+];
+
 const SECTION_LABELS: Record<PrintSection, string> = { HEADER: 'Encabezado', DETAIL: 'Detalle', FOOTER: 'Pie del comprobante' };
 const ALLOWED_BLOCKS: Record<PrintSection, Array<{ type: PrintElementType; label: string }>> = {
   HEADER: [
@@ -322,8 +348,14 @@ export const TemplateEditor: React.FC = () => {
           <h2 className="text-xl font-semibold text-foreground">Estructura del comprobante</h2>
           <p className="text-xs text-muted-foreground">Organiza encabezado, detalle y pie de impresión</p>
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <select
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => setTemplate({
+              id: 'new', name: 'Detalle de venta (A4)', templateKey: 'sale-detail-a4', documentType: 'SALE', pageSize: 'A4',
+              layout: saleDetailLayout.map(block => ({ ...block, properties: { ...block.properties }, ...(block.children ? { children: block.children.map(child => ({ ...child, properties: { ...child.properties } })) } : {}) })),
+            })}>
+              Usar diseño de detalle de venta
+            </Button>
+            <select
             aria-label="Abrir una plantilla guardada"
             value={template.id === 'new' ? '' : template.id}
             onChange={(event) => {

@@ -5,6 +5,16 @@ import { Copy, Ellipsis, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { PrintTemplate, PrintTemplateVersion } from '@/lib/api/printing';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -97,6 +107,20 @@ export const TemplateList: React.FC = () => {
   const { template, templates, loading, setTemplate, deleteDraftTemplateVersion } = usePrintStudio();
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newDocumentType, setNewDocumentType] = useState('SALE');
+  const [newPageSize, setNewPageSize] = useState<'THERMAL_58' | 'THERMAL_80' | 'A4' | 'LETTER'>('A4');
+
+  const handleCreateTemplate = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = newName.trim();
+    const templateKey = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    if (!name || !templateKey) return;
+    setTemplate({ id: 'new', name, templateKey, documentType: newDocumentType, pageSize: newPageSize, layout: [] });
+    setCreateOpen(false);
+    setNewName('');
+  };
 
   const handleDeleteDraft = async () => {
     if (!deleteTarget) return;
@@ -119,11 +143,11 @@ export const TemplateList: React.FC = () => {
             <h2 className="text-sm font-semibold text-foreground">Templates de impresión</h2>
             <p className="text-xs text-muted-foreground">Elige uno para editar o previsualizar</p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setTemplate({ id: 'new', name: 'Nuevo Template', templateKey: 'nuevo-template', documentType: 'GENERAL', pageSize: 'THERMAL_80', layout: [] })}
-          >
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCreateOpen(true)}
+            >
             <Plus data-icon="inline-start" />
             Nuevo
           </Button>
@@ -143,9 +167,47 @@ export const TemplateList: React.FC = () => {
             />
           ))}
         </div>
-      </header>
+        </header>
 
-      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && !deleting && setDeleteTarget(null)}>
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Crear template de impresión</DialogTitle>
+              <DialogDescription>Define sus datos iniciales. Después podrás agregar bloques, ajustar el diseño y previsualizarlo.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateTemplate} className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="new-template-name">Nombre</Label>
+                <Input id="new-template-name" autoFocus value={newName} onChange={event => setNewName(event.target.value)} placeholder="Detalle de venta" required />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="new-template-document-type">Tipo de documento</Label>
+                <select id="new-template-document-type" value={newDocumentType} onChange={event => setNewDocumentType(event.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="SALE">Venta</option>
+                  <option value="PRESCRIPTION">Receta</option>
+                  <option value="INVOICE">Factura</option>
+                  <option value="GENERAL">General</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="new-template-paper-size">Tamaño y tipo de hoja</Label>
+                <select id="new-template-paper-size" value={newPageSize} onChange={event => setNewPageSize(event.target.value as typeof newPageSize)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="A4">Hoja A4</option>
+                  <option value="LETTER">Hoja Carta</option>
+                  <option value="THERMAL_80">Térmico 80 mm</option>
+                  <option value="THERMAL_58">Térmico 58 mm</option>
+                </select>
+              </div>
+              <p className="text-xs text-muted-foreground">Se abrirá en el editor como una plantilla nueva. Se guardará en el sistema al pulsar “Guardar diseño”.</p>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
+                <Button type="submit">Continuar al editor</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && !deleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar este borrador?</AlertDialogTitle>
