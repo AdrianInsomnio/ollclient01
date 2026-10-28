@@ -156,15 +156,15 @@ export default function PrintingSettingsPage() {
       templates: "Templates", targets: "Targets", printers: "Printers", assets: "Assets",
       batches: "Historial", locations: "Ubicaciones", rules: "Reglas",
     }
-    const fetchResource = async (resource: PrintingResource) => {
+    const fetchResource = async (resource: PrintingResource, refresh: boolean) => {
       switch (resource) {
-        case "templates": setTemplates(await getPrintingTemplates()); break
+        case "templates": setTemplates(await getPrintingTemplates(refresh)); break
         case "targets": setTargets(await getPrintingTargets()); break
         case "printers": setPrinters(await getPrintingPrinters()); break
         case "assets": setAssets(await getPrintingAssets()); break
         case "batches": setBatches(await listPrintingBatches(50)); break
         case "locations": setLocations(await getPrintingLocations()); break
-        case "rules": setRules(await getPrintingRules()); break
+        case "rules": setRules(await getPrintingRules(refresh)); break
       }
       loadedResources.current.add(resource)
     }
@@ -173,7 +173,7 @@ export default function PrintingSettingsPage() {
       if (!force && loadedResources.current.has(resource)) return
       let request = resourceRequests.current.get(resource)
       if (!request) {
-        request = fetchResource(resource)
+        request = fetchResource(resource, force)
         resourceRequests.current.set(resource, request)
       }
       try {

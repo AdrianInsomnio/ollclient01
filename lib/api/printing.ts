@@ -1,4 +1,5 @@
 import { get, patch, post } from "../api-client"
+import { useAuthStore } from "../auth-store"
 import type { PrintTemplateDefinition } from "../printing/design-system"
 
 export type PrintPaperType = "THERMAL" | "SHEET"
@@ -18,17 +19,69 @@ export interface PrintRule { id: number; name: string; event: string; priority: 
 export interface PrintJob { id: number; status: string; targetId: number; lastError?: string | null }
 export interface PrintBatch { id: number; sourceDocumentType: string; status: string; createdAt: string; jobs: PrintJob[] }
 
-export const getPrintingTemplates = () => get<PrintTemplate[]>("/printing/templates")
+const SHARED_LIST_CACHE_TTL_MS = 15_000
+
+function createPrintingListCache<T>() {
+  let scope: string | null = null
+  let generation = 0
+  let cached: { value: T; expiresAt: number } | null = null
+  let inFlight: Promise<T> | null = null
+
+  return {
+    get(loader: () => Promise<T>, nextScope: string | null, force = false): Promise<T> {
+      if (!nextScope) return loader()
+      if (scope !== nextScope) {
+        scope = nextScope
+        generation += 1
+        cached = null
+        inFlight = null
+      }
+      if (inFlight) return inFlight
+      if (!force && cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.value)
+
+      const requestGeneration = generation
+      const request = loader().then((value) => {
+        if (generation === requestGeneration) cached = { value, expiresAt: Date.now() + SHARED_LIST_CACHE_TTL_MS }
+        return value
+      }).finally(() => {
+        if (inFlight === request) inFlight = null
+      })
+      inFlight = request
+      return request
+    },
+    invalidate() {
+      generation += 1
+      cached = null
+      inFlight = null
+    },
+  }
+}
+
+const templatesCache = createPrintingListCache<PrintTemplate[]>()
+const rulesCache = createPrintingListCache<PrintRule[]>()
+
+function getPrintingCacheScope() {
+  const { tenantId, token, user } = useAuthStore.getState()
+  if (!tenantId || !user?.id) return null
+  return `${tenantId}:${user.id}:${user.role}:${token ?? "cookie"}`
+}
+
+export const getPrintingTemplates = (force = false) =>
+  templatesCache.get(() => get<PrintTemplate[]>("/printing/templates"), getPrintingCacheScope(), force)
 export const getPrintingLocations = () => get<PrintLocation[]>("/printing/locations")
 export const getPrintingAgents = () => get<PrintAgent[]>("/printing/agents")
 export const getPrintingProfiles = () => get<PrinterProfile[]>("/printing/profiles")
 export const getPrintingPrinters = () => get<Printer[]>("/printing/printers")
 export const getPrintingTargets = () => get<PrintTarget[]>("/printing/targets")
 export const getPrintingAssets = () => get<PrintAsset[]>("/printing/assets")
-export const getPrintingRules = () => get<PrintRule[]>("/printing/rules")
+export const getPrintingRules = (force = false) =>
+  rulesCache.get(() => get<PrintRule[]>("/printing/rules"), getPrintingCacheScope(), force)
 
-export const createPrintingTemplate = (data: Pick<PrintTemplate, "templateKey" | "name" | "documentType">) =>
-  post<PrintTemplate>("/printing/templates", data)
+export const createPrintingTemplate = async (data: Pick<PrintTemplate, "templateKey" | "name" | "documentType">) => {
+  const template = await post<PrintTemplate>("/printing/templates", data)
+  templatesCache.invalidate()
+  return template
+}
 
 export const createPrintingLocation = (data: Pick<PrintLocation, "name" | "code">) =>
   post<PrintLocation>("/printing/locations", data)
@@ -54,31 +107,56 @@ export const createPrintingTarget = (data: {
 export const deletePrintingLocation = (id: number) =>
 	post<{ id: number; isActive?: boolean }>(`/printing/locations/${id}/delete`, {})
 
-export const deactivatePrintingTemplate = (id: number) =>
-  post<{ id: number; resource: 'templates'; isActive: false }>(`/printing/config/templates/${id}/deactivate`, {})
+export const deactivatePrintingTemplate = async (id: number) => {
+  const result = await post<{ id: number; resource: 'templates'; isActive: false }>(`/printing/config/templates/${id}/deactivate`, {})
+  templatesCache.invalidate()
+  return result
+}
 
-export const deletePrintingTemplate = (id: number) =>
-  post<{ id: number; deleted: true }>(`/printing/templates/${id}/delete`, {})
+export const deletePrintingTemplate = async (id: number) => {
+  const result = await post<{ id: number; deleted: true }>(`/printing/templates/${id}/delete`, {})
+  templatesCache.invalidate()
+  rulesCache.invalidate()
+  return result
+}
 
 export type PrintRuleInput = Pick<PrintRule, "name" | "event" | "isActive" | "priority"> & { outputs: Array<Omit<PrintRuleOutput, "id" | "target"> & { id?: number }> }
 
-export const createPrintingRule = (data: PrintRuleInput | { event: string; targetId: number; templateKey: string; priority?: number }) =>
-	post<PrintRule>("/printing/rules", data)
+export const createPrintingRule = async (data: PrintRuleInput | { event: string; targetId: number; templateKey: string; priority?: number }) => {
+  const rule = await post<PrintRule>("/printing/rules", data)
+  rulesCache.invalidate()
+  return rule
+}
 
-export const updatePrintingRule = (id: number, data: Partial<PrintRuleInput> | { event?: string; targetId?: number; templateKey?: string; priority?: number; outputName?: string; copies?: number; outputIsActive?: boolean }) =>
-  patch<PrintRule>(`/printing/rules/${id}`, data)
+export const updatePrintingRule = async (id: number, data: Partial<PrintRuleInput> | { event?: string; targetId?: number; templateKey?: string; priority?: number; outputName?: string; copies?: number; outputIsActive?: boolean }) => {
+  const rule = await patch<PrintRule>(`/printing/rules/${id}`, data)
+  rulesCache.invalidate()
+  return rule
+}
 
-export const deletePrintingRule = (id: number) =>
-	post<{ id: number; deleted: boolean }>(`/printing/rules/${id}/delete`, {})
+export const deletePrintingRule = async (id: number) => {
+  const result = await post<{ id: number; deleted: boolean }>(`/printing/rules/${id}/delete`, {})
+  rulesCache.invalidate()
+  return result
+}
 
-export const createPrintingTemplateVersion = (data: Omit<PrintTemplateVersion, "id" | "createdAt"> & { templateId: number }) =>
-  post<PrintTemplateVersion>("/printing/templates/versions", data)
+export const createPrintingTemplateVersion = async (data: Omit<PrintTemplateVersion, "id" | "createdAt"> & { templateId: number }) => {
+  const version = await post<PrintTemplateVersion>("/printing/templates/versions", data)
+  templatesCache.invalidate()
+  return version
+}
 
-export const activatePrintingTemplateVersion = (versionId: number) =>
-  post<PrintTemplateVersion>(`/printing/templates/versions/${versionId}/activate`, {})
+export const activatePrintingTemplateVersion = async (versionId: number) => {
+  const version = await post<PrintTemplateVersion>(`/printing/templates/versions/${versionId}/activate`, {})
+  templatesCache.invalidate()
+  return version
+}
 
-export const deletePrintingTemplateVersion = (versionId: number) =>
-  post<{ id: number; status: "DELETED" }>(`/printing/templates/versions/${versionId}/delete`, {})
+export const deletePrintingTemplateVersion = async (versionId: number) => {
+  const result = await post<{ id: number; status: "DELETED" }>(`/printing/templates/versions/${versionId}/delete`, {})
+  templatesCache.invalidate()
+  return result
+}
 
 export const createPrintingAsset = (data: Pick<PrintAsset, "name" | "storageKey" | "mimeType" | "width" | "height">) =>
   post<PrintAsset>("/printing/assets", data)
