@@ -1,4 +1,4 @@
-import { get, post } from "../api-client"
+import { get, patch, post } from "../api-client"
 import type { PrintTemplateDefinition } from "../printing/design-system"
 
 export type PrintPaperType = "THERMAL" | "SHEET"
@@ -56,13 +56,17 @@ export const deletePrintingLocation = (id: number) =>
 export const deactivatePrintingTemplate = (id: number) =>
   post<{ id: number; resource: 'templates'; isActive: false }>(`/printing/config/templates/${id}/deactivate`, {})
 
-export const deletePrintingTemplate = deactivatePrintingTemplate
+export const deletePrintingTemplate = (id: number) =>
+  post<{ id: number; deleted: true }>(`/printing/templates/${id}/delete`, {})
 
 export const createPrintingRule = (data: { event: string; targetId: number; templateKey: string; priority?: number }) =>
 	post<PrintRule>("/printing/rules", data)
 
+export const updatePrintingRule = (id: number, data: { event: string; targetId: number; templateKey: string; priority: number }) =>
+  patch<PrintRule>(`/printing/rules/${id}`, data)
+
 export const deletePrintingRule = (id: number) =>
-	post<{ id: number; isActive?: boolean }>(`/printing/rules/${id}/delete`, {})
+	post<{ id: number; deleted: boolean }>(`/printing/rules/${id}/delete`, {})
 
 export const createPrintingTemplateVersion = (data: Omit<PrintTemplateVersion, "id" | "createdAt"> & { templateId: number }) =>
   post<PrintTemplateVersion>("/printing/templates/versions", data)

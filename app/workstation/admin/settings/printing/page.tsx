@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { AlertCircle, CheckCircle2, FileText, LoaderCircle, Printer, RefreshCw, Save, Send, Plus, RotateCcw, History, MapPin, Trash2, Settings2 } from "lucide-react"
+import { AlertCircle, CheckCircle2, FileText, LoaderCircle, Printer, RefreshCw, Save, Send, Plus, RotateCcw, History, MapPin, Trash2, Settings2, Pencil } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,7 @@ import {
   getPrintingPrinters, 
   getPrintingTargets, 
   getPrintingTemplates, 
+  deletePrintingTemplate,
   getPrintingLocations,
   sendPrintTest, 
   createPrintingPrinter,
@@ -46,7 +47,8 @@ import {
   type PrintLocation,
   getPrintingRules,
   createPrintingRule,
-  deletePrintingRule
+  deletePrintingRule,
+  updatePrintingRule
 } from "@/lib/api/printing"
 import { 
   PrintElementType, 
@@ -116,6 +118,7 @@ export default function PrintingSettingsPage() {
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false)
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false)
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false)
+  const [editingRule, setEditingRule] = useState<PrintRule | null>(null)
 
   const selected = useMemo(() => templates.find((template) => template.id === selectedId) ?? null, [selectedId, templates])
   const activeVersion = selected?.versions?.[0]
@@ -153,11 +156,11 @@ export default function PrintingSettingsPage() {
   const openLocationModal = async () => { await load(); setIsLocationModalOpen(true); };
   const openPrinterModal = async () => { await load(); setIsPrinterModalOpen(true); };
   const openTargetModal = async () => { await load(); setIsTargetModalOpen(true); };
-  const openRuleModal = async () => { await load(); setIsRuleModalOpen(true); };
+  const openRuleModal = async (rule?: PrintRule) => { await load(); setEditingRule(rule ?? null); setIsRuleModalOpen(true); };
 
   function selectTemplate(template: PrintTemplate) { setSelectedId(template.id) }
 
-  async function createTemplate() {
+    async function createTemplate() {
     try {
       const templateKey = editor.templateKey.trim()
       const latestTemplates = await getPrintingTemplates()
@@ -221,6 +224,16 @@ export default function PrintingSettingsPage() {
     } finally { setTestingPrint(false) }
   }
 
+  async function handleDeleteTemplate(template: PrintTemplate) {
+    if (!window.confirm(`¿Eliminar permanentemente la plantilla "${template.name}" y todas sus versiones? También se eliminarán sus reglas de impresión.`)) return
+    try {
+      await deletePrintingTemplate(template.id)
+      if (selectedId === template.id) setSelectedId(null)
+      toast.success("Plantilla eliminada")
+      await load()
+    } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al eliminar plantilla") }
+  }
+
   const addElement = (type: PrintElementType, fieldKey?: string) => {
     const newElement: PrintElement = {
       id: Math.random().toString(36).substring(7),
@@ -229,6 +242,7 @@ export default function PrintingSettingsPage() {
       label: fieldKey ? PRINT_FIELDS_REGISTRY[fieldKey]?.label || fieldKey : (type === 'TEXT' ? 'Campo de texto' : type),
       properties: { alignment: 'left' }
     }
+
     setEditor({ ...editor, definition: { ...editor.definition, elements: [...editor.definition.elements, newElement] } })
     setSelectedElementId(newElement.id)
   }
@@ -329,18 +343,23 @@ export default function PrintingSettingsPage() {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     try {
-      await createPrintingRule({
-        event: String(form.get("event")),
-        targetId: Number(//Sustituyendo la lógica de targetId para asegurar que sea un número
-          form.get("targetId") || 0
-        ),
-        templateKey: String(form.get("templateKey")),
-        priority: Number(form.get("priority") || 0)
-      })
-      toast.success("Regla de impresión creada")
-      setIsRuleModalOpen(false)
-      await load()
-    } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al crear regla") }
+        const payload = {
+          event: String(form.get("event")),
+          targetId: Number(form.get("targetId") || 0),
+          templateKey: String(form.get("templateKey")),
+          priority: Number(form.get("priority") || 0)
+        }
+        if (editingRule) {
+          await updatePrintingRule(editingRule.id, payload)
+          toast.success("Regla de impresión actualizada")
+        } else {
+          await createPrintingRule(payload)
+          toast.success("Regla de impresión creada")
+        }
+        setIsRuleModalOpen(false)
+        setEditingRule(null)
+        await load()
+      } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al guardar regla") }
   }
 
   async function handleDeleteRule(id: number) {
@@ -379,7 +398,7 @@ export default function PrintingSettingsPage() {
             <h3 className="text-lg font-medium">Reglas de Eventos</h3>
             <p className="text-sm text-muted-foreground">Define qué se imprime cuando ocurre un evento (ej: SALE).</p>
           </div>
-          <Button onClick={openRuleModal}><Plus className="size-4 mr-2" />Nueva Regla</Button>
+          <Button onClick={() => void openRuleModal()}><Plus className="size-4 mr-2" />Nueva Regla</Button>
         </div>
         <div className="grid gap-3">
           {rules.length === 0 ? <Card><CardContent className="py-6 text-center text-sm text-muted-foreground">No hay reglas configuradas. Crea una para empezar a imprimir.</CardContent></Card> : rules.map((rule) => (
@@ -397,35 +416,38 @@ export default function PrintingSettingsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={rule.isActive ? "success" : "neutral"}>{rule.isActive ? "Activa" : "Inactiva"}</Badge>
-                  <Button variant="ghost" size="icon" onClick={() => void handleDeleteRule(rule.id)}><Trash2 className="size-4 text-destructive" /></Button>
+                  <Button variant="ghost" size="icon" aria-label="Editar regla" onClick={() => void openRuleModal(rule)}><Pencil className="size-4" /></Button>
+                  <Button variant="ghost" size="icon" aria-label="Eliminar regla" onClick={() => void handleDeleteRule(rule.id)}><Trash2 className="size-4 text-destructive" /></Button>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
-        <Dialog open={isRuleModalOpen} onOpenChange={setIsRuleModalOpen}>
+        <Dialog open={isRuleModalOpen} onOpenChange={(open) => { setIsRuleModalOpen(open); if (!open) setEditingRule(null); }}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Nueva Regla de Impresión</DialogTitle><DialogDescription>Define un destino y diseño para un evento específico.</DialogDescription></DialogHeader>
-            <form onSubmit={handleCreateRule} className="grid gap-4 py-4">
-              <Field label="Evento (Trigger)"><select name="event" className="h-9 rounded-md border bg-background px-3 text-sm" required><option value="SALE">SALE (Venta)</option><option value="PRESCRIPTION">PRESCRIPTION (Receta)</option><option value="INVOICE">INVOICE (Factura)</option></select></Field>
-              <Field label="Destino"><select name="targetId" className="h-9 rounded-md border bg-background px-3 text-sm" required>
+            <DialogHeader><DialogTitle>{editingRule ? "Editar regla de impresión" : "Nueva regla de impresión"}</DialogTitle><DialogDescription>Elige el evento, el destino de impresión y la plantilla asociada.</DialogDescription></DialogHeader>
+            <form key={editingRule?.id ?? "new-rule"} onSubmit={handleCreateRule} className="grid gap-4 py-4">
+              <Field label="Evento (cuándo imprimir)"><select name="event" defaultValue={editingRule?.event ?? "SALE"} className="h-9 rounded-md border bg-background px-3 text-sm" required><option value="SALE">SALE (Venta)</option><option value="PRESCRIPTION">PRESCRIPTION (Receta)</option><option value="INVOICE">INVOICE (Factura)</option></select></Field>
+              <Field label="Destino"><select name="targetId" defaultValue={editingRule ? String(editingRule.targetId) : ""} className="h-9 rounded-md border bg-background px-3 text-sm" required>
                 <option value="">Seleccione destino...</option>
                 {targets.map(t => <option key={t.id} value={t.id}>{t.name} ({t.code})</option>)}
               </select></Field>
-              <Field label="Template"><select name="templateKey" className="h-9 rounded-md border bg-background px-3 text-sm" required>
+              <Field label="Template"><select name="templateKey" defaultValue={editingRule?.templateKey ?? ""} className="h-9 rounded-md border bg-background px-3 text-sm" required>
                 <option value="">Seleccione template...</option>
                 {templates.map(t => <option key={t.id} value={t.templateKey}>{t.name}</option>)}
               </select></Field>
-              <Field label="Prioridad"><Input name="priority" type="number" defaultValue={0} /></Field>
-              <DialogFooter><Button type="submit"><Save className="size-4 mr-2" />Guardar Regla</Button></DialogFooter>
+              <Field label="Prioridad"><Input name="priority" type="number" defaultValue={editingRule?.priority ?? 0} /><span className="text-xs text-muted-foreground">Orden de evaluación: un número menor se procesa primero. Si hay varias reglas activas para el mismo evento, cada una puede enviar una impresión; usa 0 si solo tienes una.</span></Field>
+              {!templates.length && <p className="text-sm text-muted-foreground">No hay plantillas disponibles. Créala en la pestaña Templates o en <a className="underline" href="/workstation/admin/settings/printStudio">Print Studio</a>.</p>}
+              <DialogFooter><Button type="submit"><Save className="size-4 mr-2" />{editingRule ? "Guardar cambios" : "Guardar regla"}</Button></DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       </TabsContent>
       
       <TabsContent value="templates" className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <Card><CardHeader><CardTitle>Templates</CardTitle><CardDescription>Versiones por documento y papel.</CardDescription></CardHeader><CardContent className="space-y-2">
-          {loading ? <p className="text-sm text-muted-foreground">Cargando...</p> : templates.length === 0 ? <p className="text-sm text-muted-foreground">Todavía no hay templates. Crea el primero desde el editor.</p> : templates.map((template) => <button key={template.id} onClick={() => selectTemplate(template)} className={`w-full rounded-lg border p-3 text-left transition-colors ${selectedId === template.id ? "border-primary bg-primary/5" : "hover:bg-muted/60"}`}><div className="flex items-center justify-between gap-2"><span className="font-medium">{template.name}</span><Badge variant={template.isActive ? "success" : "neutral"}>{template.isActive ? "Activo" : "Inactivo"}</Badge></div><p className="mt-1 text-xs text-muted-foreground">{template.documentType} · {template.versions?.length ?? 0} versión(es)</p></button>)}</CardContent></Card>
+        <Card><CardHeader><CardTitle>Templates</CardTitle><CardDescription>Versiones por documento y papel.</CardDescription><a className="text-sm underline" href="/workstation/admin/settings/printStudio">Abrir Print Studio para crear o editar plantillas</a></CardHeader><CardContent className="space-y-2">
+          {loading ? <p className="text-sm text-muted-foreground">Cargando...</p> : templates.length === 0 ? <p className="text-sm text-muted-foreground">Todav�a no hay templates. Crea el primero desde el editor.</p> : templates.map((template) => <div key={template.id} className={`w-full rounded-lg border p-3 transition-colors ${selectedId === template.id ? "border-primary bg-primary/5" : "hover:bg-muted/60"}`}><div className="flex items-center justify-between gap-2"><button onClick={() => selectTemplate(template)} className="min-w-0 flex-1 text-left"><span className="font-medium">{template.name}</span><p className="mt-1 text-xs text-muted-foreground">{template.documentType} � {template.versions?.length ?? 0} versi�n(es)</p></button><div className="flex shrink-0 items-center gap-2"><Badge variant={template.isActive ? "success" : "neutral"}>{template.isActive ? "Activo" : "Inactivo"}</Badge><Button type="button" variant="ghost" size="icon" aria-label={`Eliminar plantilla ${template.name}`} title="Eliminar plantilla" disabled={!template.isActive} onClick={() => void handleDeleteTemplate(template)}><Trash2 className="size-4 text-destructive" /></Button></div></div></div>)}
+        </CardContent></Card>
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]"><Card><CardHeader><CardTitle>Editor base</CardTitle><CardDescription>Los cambios se mantienen en estado local hasta guardar.</CardDescription></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2"><Field label="Nombre"><Input value={editor.name} onChange={(event) => setEditor({ ...editor, name: event.target.value })} /></Field><Field label="Clave"><Input value={editor.templateKey} onChange={(event) => setEditor({ ...editor, templateKey: event.target.value })} /></Field><Field label="Tipo de documento"><Input value={editor.documentType} onChange={(event) => setEditor({ ...editor, documentType: event.target.value })} /></Field><Field label="Papel"><select className="h-9 rounded-md border bg-background px-3 text-sm" value={editor.paperSize} onChange={(event) => setEditor({ ...editor, paperSize: event.target.value as PrintPaperSize })}><option value="THERMAL_58">Térmico 58 mm</option><option value="THERMAL_80">Térmico 80 mm</option><option value="A4">A4</option><option value="LETTER">Carta</option></select></Field><div className="sm:col-span-2 flex justify-end"><Button disabled={loading} onClick={() => selected ? setIsVersionModalOpen(true) : void createTemplate()}><Save className="size-4" />{selected ? "Guardar Nueva Versión" : "Crear template"}</Button></div></CardContent></Card><ReceiptPreview editor={editor} activeVersion={activeVersion} /></div >
       </TabsContent>
       
