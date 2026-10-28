@@ -10,6 +10,94 @@ type PersistedAuth = {
   };
 };
 
+type PrintingApiMetric = {
+  page: string;
+  method: string;
+  endpoint: string;
+  durationMs: number;
+  status: number;
+  attempt: number;
+};
+
+type PrintingApiMetricSummary = {
+  page: string;
+  method: string;
+  endpoint: string;
+  requests: number;
+  failures: number;
+  averageMs: number;
+};
+
+type PrintingApiMetrics = {
+  requests: PrintingApiMetric[];
+  totalRequests: number;
+  droppedRequests: number;
+  reset: () => void;
+  report: () => { totalRequests: number; recordedRequests: number; droppedRequests: number; routes: PrintingApiMetricSummary[] };
+};
+
+declare global {
+  interface Window {
+    __ollPrintingApiMetrics?: PrintingApiMetrics;
+  }
+}
+
+const PRINTING_API_METRICS_LIMIT = 2000;
+
+function recordPrintingApiMetric(metric: PrintingApiMetric) {
+  if (process.env.NODE_ENV !== "development" || typeof window === "undefined") return;
+
+  const metrics = window.__ollPrintingApiMetrics ?? (window.__ollPrintingApiMetrics = {
+    requests: [],
+    totalRequests: 0,
+    droppedRequests: 0,
+    reset() {
+      this.requests = [];
+      this.totalRequests = 0;
+      this.droppedRequests = 0;
+    },
+    report() {
+      const grouped = new Map<string, PrintingApiMetricSummary & { durationTotal: number }>();
+      for (const request of this.requests) {
+        const key = `${request.page}\n${request.method}\n${request.endpoint}`;
+        const summary = grouped.get(key) ?? {
+          page: request.page,
+          method: request.method,
+          endpoint: request.endpoint,
+          requests: 0,
+          failures: 0,
+          averageMs: 0,
+          durationTotal: 0,
+        };
+        summary.requests += 1;
+        summary.durationTotal += request.durationMs;
+        if (request.status === 0 || request.status >= 400) summary.failures += 1;
+        grouped.set(key, summary);
+      }
+
+      const routes = [...grouped.values()].map(({ durationTotal, ...summary }) => ({
+        ...summary,
+        averageMs: Number((durationTotal / summary.requests).toFixed(1)),
+      }));
+      console.info(`[Printing API] ${this.totalRequests} solicitudes HTTP registradas; ${this.droppedRequests} detalles descartados por límite.`);
+      console.table(routes);
+      return {
+        totalRequests: this.totalRequests,
+        recordedRequests: this.requests.length,
+        droppedRequests: this.droppedRequests,
+        routes,
+      };
+    },
+  });
+
+  metrics.totalRequests += 1;
+  if (metrics.requests.length === PRINTING_API_METRICS_LIMIT) {
+    metrics.requests.shift();
+    metrics.droppedRequests += 1;
+  }
+  metrics.requests.push(metric);
+}
+
 function getAuthSnapshot() {
   const memory = useAuthStore.getState();
   if (memory.token || typeof window === "undefined") return memory;
@@ -91,11 +179,24 @@ async function request<T>(
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const startedAt = performance.now();
+    let metricRecorded = false;
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {
         ...fetchInit,
         signal: controller.signal,
       });
+      if (endpoint.startsWith("/printing/")) {
+        recordPrintingApiMetric({
+          page: typeof window === "undefined" ? "server" : window.location.pathname,
+          method,
+          endpoint,
+          durationMs: Number((performance.now() - startedAt).toFixed(1)),
+          status: response.status,
+          attempt: attempt + 1,
+        });
+        metricRecorded = true;
+      }
 
       clearTimeout(timeoutId);
 
@@ -115,6 +216,16 @@ async function request<T>(
       return await response.json();
     } catch (error) {
       clearTimeout(timeoutId);
+      if (!metricRecorded && endpoint.startsWith("/printing/")) {
+        recordPrintingApiMetric({
+          page: typeof window === "undefined" ? "server" : window.location.pathname,
+          method,
+          endpoint,
+          durationMs: Number((performance.now() - startedAt).toFixed(1)),
+          status: 0,
+          attempt: attempt + 1,
+        });
+      }
       lastError = error as Error;
 
       if (error instanceof ApiError) {
