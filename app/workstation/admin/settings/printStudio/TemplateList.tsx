@@ -1,8 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Copy, Ellipsis, Pencil, Plus, Trash2 } from 'lucide-react';
-import type { PrintTemplate, PrintTemplateVersion } from '@/lib/api/printing';
+import { toast } from 'sonner';
+import * as PrintingAPI from '@/lib/api/printing';
+import type { PrintTemplate, PrintTemplateVersion, PrintRule } from '@/lib/api/printing';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -104,13 +107,30 @@ const TemplateListItem: React.FC<{
 };
 
 export const TemplateList: React.FC = () => {
-  const { template, templates, loading, setTemplate, deleteDraftTemplateVersion } = usePrintStudio();
+  const { template, templates, loading, setTemplate, deleteDraftTemplateVersion, loadTemplate } = usePrintStudio();
+  const requestedTemplateLoaded = useRef<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDocumentType, setNewDocumentType] = useState('SALE');
   const [newPageSize, setNewPageSize] = useState<'THERMAL_58' | 'THERMAL_80' | 'A4' | 'LETTER'>('A4');
+  const [rules, setRules] = useState<PrintRule[]>([]);
+  const matchingOutputs = rules.flatMap(rule => rule.outputs
+    .filter(output => output.templateKey === template.templateKey)
+    .map(output => ({ rule, output })));
+
+  useEffect(() => {
+    PrintingAPI.getPrintingRules().then(setRules)
+      .catch(() => toast.error('No se pudieron cargar las asociaciones de impresión'));
+  }, []);
+
+  useEffect(() => {
+    const requestedTemplateId = new URLSearchParams(window.location.search).get('templateId');
+    if (!requestedTemplateId || templates.length === 0 || requestedTemplateLoaded.current === requestedTemplateId) return;
+    requestedTemplateLoaded.current = requestedTemplateId;
+    void loadTemplate(requestedTemplateId);
+  }, [templates.length, loadTemplate]);
 
   const handleCreateTemplate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -167,7 +187,16 @@ export const TemplateList: React.FC = () => {
             />
           ))}
         </div>
+        <Button asChild variant="outline" size="sm"><Link href="/workstation/admin/settings/printing">Volver a reglas de impresión</Link></Button>
         </header>
+
+        <section className="grid gap-3 border-b bg-background px-5 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><h3 className="text-sm font-semibold">Reglas y documentos asociados</h3><p className="text-xs text-muted-foreground">Las asociaciones se administran desde Printing Core; el diseño visual pertenece a esta plantilla.</p></div>
+            <Button asChild variant="outline" size="sm"><Link href="/workstation/admin/settings/printing">Administrar reglas y salidas</Link></Button>
+          </div>
+          {matchingOutputs.length ? <div className="grid gap-2 sm:grid-cols-2">{matchingOutputs.map(({ rule, output }) => <div key={`${rule.id}-${output.id}`} className="rounded-lg border p-3 text-xs"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{rule.name}</span><Badge variant="outline">{rule.event}</Badge><Badge variant={rule.isActive && output.isActive ? 'success' : 'neutral'}>{rule.isActive && output.isActive ? 'Activa' : 'Inactiva'}</Badge></div><p className="mt-1 text-muted-foreground">{output.name} · {output.target?.name || `Destino ${output.targetId}`} · orden {output.priority} · {output.copies} copias</p></div>)}</div> : <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Esta plantilla todavía no está asociada a una salida activa.</p>}
+        </section>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogContent>

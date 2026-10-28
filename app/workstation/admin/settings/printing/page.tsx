@@ -1,13 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { AlertCircle, CheckCircle2, FileText, LoaderCircle, Printer, RefreshCw, Save, Send, Plus, RotateCcw, History, MapPin, Trash2, Settings2, Pencil } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
+import { AlertCircle, CheckCircle2, FileText, LoaderCircle, Printer, RefreshCw, Save, Send, Plus, RotateCcw, History, MapPin, Trash2, Pencil } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
   Dialog, 
@@ -42,6 +44,7 @@ import {
   type PrintTemplateVersion,
   type PrintBatch,
   type PrintRule,
+  type PrintRuleInput,
   type PrintOrientation,
   type PrintPaperType,
   type PrintLocation,
@@ -119,23 +122,32 @@ export default function PrintingSettingsPage() {
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false)
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<PrintRule | null>(null)
+  const [savingRule, setSavingRule] = useState(false)
+  const [activeTab, setActiveTab] = useState("rules")
+  const loadInFlight = useRef<Promise<void> | null>(null)
 
   const selected = useMemo(() => templates.find((template) => template.id === selectedId) ?? null, [selectedId, templates])
   const activeVersion = selected?.versions?.[0]
+  const activeTargets = targets.filter((target) => target.isActive)
+  const onlineTargets = activeTargets.filter((target) => target.printer?.printAgent?.status === "ONLINE").length
+  const isConnectedEvent = (event: string) => event === "SALE" || event === "CANCELLATION"
 
-  async function load() {
-    setLoading(true)
-    setError(null)
-    try {
+  function load() {
+    if (loadInFlight.current) return loadInFlight.current
+
+    const request = (async () => {
+      setLoading(true)
+      setError(null)
+      const failedResources: string[] = []
       const loadData = async <T,>(fn: () => Promise<T>, setter: (data: T) => void, resourceName: string) => {
         try {
-          const data = await fn();
-          setter(data);
-        } catch (e) {
-          console.error(`Error cargando ${resourceName}:`, e);
-          // No lanzamos el error para que el resto de la página cargue
+          setter(await fn())
+        } catch (cause) {
+          const message = cause instanceof ApiError ? cause.message : "Error de red"
+          failedResources.push(`${resourceName}: ${message}`)
+          console.error(`Error cargando ${resourceName}:`, cause)
         }
-      };
+      }
 
       await Promise.all([
         loadData(getPrintingTemplates, setTemplates, "Templates"),
@@ -145,18 +157,23 @@ export default function PrintingSettingsPage() {
         loadData(() => listPrintingBatches(50), setBatches, "Batches"),
         loadData(getPrintingLocations, setLocations, "Locations"),
         loadData(getPrintingRules, setRules, "Rules"),
-      ]);
-    } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "No se pudo cargar la configuración de impresión")
-    } finally { setLoading(false) }
+      ])
+      if (failedResources.length) setError(`No se pudo cargar ${failedResources.join("; ")}`)
+    })()
+
+    loadInFlight.current = request.finally(() => {
+      setLoading(false)
+      loadInFlight.current = null
+    })
+    return loadInFlight.current
   }
 
   useEffect(() => { void load() }, [])
 
-  const openLocationModal = async () => { await load(); setIsLocationModalOpen(true); };
-  const openPrinterModal = async () => { await load(); setIsPrinterModalOpen(true); };
-  const openTargetModal = async () => { await load(); setIsTargetModalOpen(true); };
-  const openRuleModal = async (rule?: PrintRule) => { await load(); setEditingRule(rule ?? null); setIsRuleModalOpen(true); };
+  const openLocationModal = () => setIsLocationModalOpen(true);
+  const openPrinterModal = () => setIsPrinterModalOpen(true);
+  const openTargetModal = () => setIsTargetModalOpen(true);
+  const openRuleModal = (rule?: PrintRule) => { setEditingRule(rule ?? null); setIsRuleModalOpen(true); };
 
   function selectTemplate(template: PrintTemplate) { setSelectedId(template.id) }
 
@@ -339,30 +356,35 @@ export default function PrintingSettingsPage() {
     } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al crear destino") }
   }
 
-  async function handleCreateRule(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
+  async function handleSaveRule(payload: PrintRuleInput) {
+    setSavingRule(true)
     try {
-        const payload = {
-          event: String(form.get("event")),
-          targetId: Number(form.get("targetId") || 0),
-          templateKey: String(form.get("templateKey")),
-          priority: Number(form.get("priority") || 0)
-        }
-        if (editingRule) {
-          await updatePrintingRule(editingRule.id, payload)
-          toast.success("Regla de impresión actualizada")
-        } else {
-          await createPrintingRule(payload)
-          toast.success("Regla de impresión creada")
-        }
-        setIsRuleModalOpen(false)
-        setEditingRule(null)
-        await load()
-      } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "Error al guardar regla") }
+      if (editingRule) {
+        await updatePrintingRule(editingRule.id, payload)
+        toast.success("Regla de impresión actualizada")
+      } else {
+        await createPrintingRule(payload)
+        toast.success("Regla de impresión creada")
+      }
+      setIsRuleModalOpen(false)
+      setEditingRule(null)
+      await load()
+    } catch (cause) {
+      toast.error(cause instanceof ApiError ? cause.message : cause instanceof Error ? cause.message : "Error al guardar regla")
+      throw cause
+    } finally { setSavingRule(false) }
+  }
+
+  async function handleToggleRule(rule: PrintRule) {
+    try {
+      await updatePrintingRule(rule.id, { isActive: !rule.isActive })
+      toast.success(rule.isActive ? "Regla desactivada" : "Regla activada")
+      await load()
+    } catch (cause) { toast.error(cause instanceof ApiError ? cause.message : "No se pudo cambiar el estado de la regla") }
   }
 
   async function handleDeleteRule(id: number) {
+    if (!window.confirm("¿Eliminar esta regla y todas sus salidas? Los trabajos ya registrados conservarán su contrato de impresión.")) return
     try {
       await deletePrintingRule(id)
       toast.success("Regla eliminada")
@@ -380,68 +402,66 @@ export default function PrintingSettingsPage() {
 
   return <div className="space-y-5 pb-8">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><p className="text-xs text-muted-foreground">Configuración / Impresión</p><h2 className="mt-1 text-2xl font-semibold tracking-tight">Printing Core</h2><p className="mt-1 text-sm text-muted-foreground">Templates, reglas y preview local para documentos de impresión.</p></div >
-      <Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className="size-4" />Actualizar</Button>
+      <div><p className="text-xs text-muted-foreground">Configuración / Hardware y periféricos / Reglas de salida</p><h2 className="mt-1 text-2xl font-semibold tracking-tight">Printing Core</h2><p className="mt-1 text-sm text-muted-foreground">Configura eventos, documentos de salida, plantillas y destinos físicos.</p></div>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />Actualizar estado</Button>
+        <Button variant="outline" onClick={() => setActiveTab("targets")}>Configuración de impresoras</Button>
+      </div>
     </div>
     <div className="grid gap-3 md:grid-cols-3">
-      <StatusCard icon={CheckCircle2} title="Contrato v1" detail="Listo para OLLPrintAgent" variant="success" />
-      <StatusCard icon={FileText} title="Preview local" detail="Sin llamadas por cada cambio" variant="info" />
-      <StatusCard icon={Printer} title="Destinos activos" detail={`${targets.length} configurados`} variant="neutral" />
+      <StatusCard icon={CheckCircle2} title="Contrato v1" detail="Contrato de salida implementado para OLLPrintAgent" status="Disponible" variant="success" />
+      <StatusCard icon={FileText} title="Preview local" detail="Vista previa local, sin enviar trabajos" status="Local" variant="info" />
+      <StatusCard icon={Printer} title="Destinos físicos" detail={`${activeTargets.length} activos · ${onlineTargets} con estado de agente ONLINE registrado`} status={activeTargets.length ? `${onlineTargets}/${activeTargets.length}` : "Sin destinos"} variant={onlineTargets ? "success" : "neutral"} />
     </div>
-    {error && <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"><AlertCircle className="size-4" />{error}. Puedes seguir usando el preview local.</div>}
-    <Tabs defaultValue="rules" className="space-y-4">
-      <TabsList><TabsTrigger value="rules">Reglas de Impresión</TabsTrigger><TabsTrigger value="templates">Templates</TabsTrigger><TabsTrigger value="targets">Infraestructura</TabsTrigger><TabsTrigger value="assets">Assets</TabsTrigger><TabsTrigger value="history">Historial</TabsTrigger></TabsList>
+    {error && <div role="alert" className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"><AlertCircle className="size-4" />{error}</div>}
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <TabsList className="max-w-full overflow-x-auto"><TabsTrigger value="rules">Reglas de Impresión</TabsTrigger><TabsTrigger value="templates">Templates</TabsTrigger><TabsTrigger value="targets">Destinos físicos</TabsTrigger><TabsTrigger value="assets">Assets</TabsTrigger><TabsTrigger value="history">Historial de salidas</TabsTrigger></TabsList>
       
       <TabsContent value="rules" className="space-y-5">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-lg font-medium">Reglas de Eventos</h3>
-            <p className="text-sm text-muted-foreground">Define qué se imprime cuando ocurre un evento (ej: SALE).</p>
-          </div>
-          <Button onClick={() => void openRuleModal()}><Plus className="size-4 mr-2" />Nueva Regla</Button>
-        </div>
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b bg-muted/20 sm:flex-row sm:items-center sm:justify-between">
+            <div><CardTitle>Constructor de reglas</CardTitle><CardDescription>Define el evento y sus documentos de salida multipunto.</CardDescription></div>
+            <Button onClick={() => openRuleModal()}><Plus className="size-4" />Nueva regla</Button>
+          </CardHeader>
+          <CardContent className="pt-4 text-sm text-muted-foreground">Eventos conectados: <Badge variant="outline">SALE · Impresión de venta</Badge> <Badge variant="outline">CANCELLATION · Cancelación de venta</Badge>. Cada regla puede contener varias salidas, cada una con plantilla, destino, orden y copias.</CardContent>
+        </Card>
         <div className="grid gap-3">
-          {rules.length === 0 ? <Card><CardContent className="py-6 text-center text-sm text-muted-foreground">No hay reglas configuradas. Crea una para empezar a imprimir.</CardContent></Card> : rules.map((rule) => (
+          {rules.length === 0 ? <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No hay reglas guardadas. Crea una regla con al menos una salida para comenzar.</CardContent></Card> : rules.map((rule) => (
             <Card key={rule.id} className="overflow-hidden">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="bg-primary/10 p-2 rounded-lg"><Settings2 className="size-4 text-primary" /></div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm">{rule.event}</span>
-                      <Badge variant="outline" className="text-[10px]">{rule.priority === 0 ? "Default" : `Prioridad ${rule.priority}`}</Badge>
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <Checkbox checked={rule.isActive} onCheckedChange={() => void handleToggleRule(rule)} aria-label={`${rule.isActive ? "Desactivar" : "Activar"} regla ${rule.name}`} className="mt-1" />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{rule.name || rule.event}</h3><Badge variant={isConnectedEvent(rule.event) ? "outline" : "warning"}>{rule.event === "SALE" ? "Impresión de venta" : rule.event === "CANCELLATION" ? "Cancelación de venta" : `Sin disparador · ${rule.event}`}</Badge><Badge variant={rule.isActive && isConnectedEvent(rule.event) ? "success" : rule.isActive ? "warning" : "neutral"}>{rule.isActive && !isConnectedEvent(rule.event) ? "Sin disparador" : rule.isActive ? "Activa" : "Inactiva"}</Badge></div>
+                      <p className="mt-1 text-xs text-muted-foreground">{rule.outputs.length} {rule.outputs.length === 1 ? "documento de salida" : "documentos de salida"}{rule.updatedAt ? ` · Actualizada ${new Date(rule.updatedAt).toLocaleString()}` : ""}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground">Destino: {targets.find(t => t.id === rule.targetId)?.name || rule.targetId} · Template: {rule.templateKey}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-2 pl-7 sm:pl-0">
+                    <Button variant="outline" size="sm" onClick={() => openRuleModal(rule)}><Pencil className="size-4" />Editar regla</Button>
+                    <Button variant="ghost" size="icon" aria-label={`Eliminar regla ${rule.name}`} onClick={() => void handleDeleteRule(rule.id)}><Trash2 className="size-4 text-destructive" /></Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={rule.isActive ? "success" : "neutral"}>{rule.isActive ? "Activa" : "Inactiva"}</Badge>
-                  <Button variant="ghost" size="icon" aria-label="Editar regla" onClick={() => void openRuleModal(rule)}><Pencil className="size-4" /></Button>
-                  <Button variant="ghost" size="icon" aria-label="Eliminar regla" onClick={() => void handleDeleteRule(rule.id)}><Trash2 className="size-4 text-destructive" /></Button>
+                <div className="mt-4 grid gap-2 border-t pt-3">
+                  {rule.outputs.map((output) => {
+                    const template = templates.find((item) => item.templateKey === output.templateKey)
+                    const version = template?.versions.find((item) => item.status === "ACTIVE")
+                    const target = targets.find((item) => item.id === output.targetId)
+                    const printer = target?.printer
+                    const agentStatus = printer?.printAgent?.status
+                    return <div key={output.id} className="grid gap-3 rounded-lg border bg-muted/10 p-3 text-sm sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
+                      <div className="min-w-0"><p className="truncate font-medium">{output.name}</p><p className="truncate text-xs text-muted-foreground">{template?.name || `Plantilla no encontrada (${output.templateKey})`} · {version ? `${version.paperSize} · v${version.version}` : "Sin versión activa"}</p></div>
+                      <div className="min-w-0"><p className="truncate">{target?.name || `Destino ${output.targetId}`}</p><p className="truncate text-xs text-muted-foreground">{printer?.name || "Sin impresora"}{target?.location?.name ? ` · ${target.location.name}` : ""}</p></div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"><span>Orden {output.priority}</span><span>{output.copies} {output.copies === 1 ? "copia" : "copias"}</span><span>{agentStatus ? `Agent ${agentStatus} (estado registrado)` : "Estado no disponible"}</span>{!output.isActive && <Badge variant="neutral">Salida inactiva</Badge>}</div>
+                      <div className="flex justify-end">{template && <Button asChild variant="outline" size="sm"><Link href={`/workstation/admin/settings/printStudio?templateId=${template.id}`}>Editar template</Link></Button>}</div>
+                    </div>
+                  })}
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
-        <Dialog open={isRuleModalOpen} onOpenChange={(open) => { setIsRuleModalOpen(open); if (!open) setEditingRule(null); }}>
-          <DialogContent>
-            <DialogHeader><DialogTitle>{editingRule ? "Editar regla de impresión" : "Nueva regla de impresión"}</DialogTitle><DialogDescription>Elige el evento, el destino de impresión y la plantilla asociada.</DialogDescription></DialogHeader>
-            <form key={editingRule?.id ?? "new-rule"} onSubmit={handleCreateRule} className="grid gap-4 py-4">
-              <Field label="Evento (cuándo imprimir)"><select name="event" defaultValue={editingRule?.event ?? "SALE"} className="h-9 rounded-md border bg-background px-3 text-sm" required><option value="SALE">SALE (Venta)</option><option value="PRESCRIPTION">PRESCRIPTION (Receta)</option><option value="INVOICE">INVOICE (Factura)</option></select></Field>
-              <Field label="Destino"><select name="targetId" defaultValue={editingRule ? String(editingRule.targetId) : ""} className="h-9 rounded-md border bg-background px-3 text-sm" required>
-                <option value="">Seleccione destino...</option>
-                {targets.map(t => <option key={t.id} value={t.id}>{t.name} ({t.code})</option>)}
-              </select></Field>
-              <Field label="Template"><select name="templateKey" defaultValue={editingRule?.templateKey ?? ""} className="h-9 rounded-md border bg-background px-3 text-sm" required>
-                <option value="">Seleccione template...</option>
-                {templates.map(t => <option key={t.id} value={t.templateKey}>{t.name}</option>)}
-              </select></Field>
-              <Field label="Prioridad"><Input name="priority" type="number" defaultValue={editingRule?.priority ?? 0} /><span className="text-xs text-muted-foreground">Orden de evaluación: un número menor se procesa primero. Si hay varias reglas activas para el mismo evento, cada una puede enviar una impresión; usa 0 si solo tienes una.</span></Field>
-              {!templates.length && <p className="text-sm text-muted-foreground">No hay plantillas disponibles. Créala en la pestaña Templates o en <a className="underline" href="/workstation/admin/settings/printStudio">Print Studio</a>.</p>}
-              <DialogFooter><Button type="submit"><Save className="size-4 mr-2" />{editingRule ? "Guardar cambios" : "Guardar regla"}</Button></DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <RuleBuilderDialog key={`${editingRule?.id ?? "new"}-${isRuleModalOpen}`} open={isRuleModalOpen} rule={editingRule} templates={templates} targets={targets} saving={savingRule} onOpenChange={(open) => { setIsRuleModalOpen(open); if (!open) setEditingRule(null); }} onSave={handleSaveRule} onOpenTargets={() => setActiveTab("targets")} />
       </TabsContent>
       
       <TabsContent value="templates" className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -593,8 +613,119 @@ export default function PrintingSettingsPage() {
   </div>
 }
 
+type RuleOutputDraft = { key: string; id?: number; name: string; targetId: string; templateKey: string; priority: number; copies: number; isActive: boolean }
+
+function RuleBuilderDialog({
+  open, rule, templates, targets, saving, onOpenChange, onSave, onOpenTargets,
+}: {
+  open: boolean
+  rule: PrintRule | null
+  templates: PrintTemplate[]
+  targets: PrintTarget[]
+  saving: boolean
+  onOpenChange: (open: boolean) => void
+  onSave: (input: PrintRuleInput) => Promise<void>
+  onOpenTargets: () => void
+}) {
+  const [name, setName] = useState(() => rule?.name || "")
+  const [event, setEvent] = useState(() => rule?.event || "SALE")
+  const [isActive, setIsActive] = useState(() => rule?.isActive ?? true)
+  const [outputs, setOutputs] = useState<RuleOutputDraft[]>(() => rule?.outputs?.length ? rule.outputs.map((output) => ({
+    key: `output-${output.id}`, id: output.id, name: output.name, targetId: String(output.targetId),
+    templateKey: output.templateKey, priority: output.priority, copies: output.copies, isActive: output.isActive,
+  })) : [{ key: `new-${Date.now()}`, name: "", targetId: "", templateKey: "", priority: 0, copies: 1, isActive: true }])
+  const supportedEvents = ["SALE", "CANCELLATION"]
+
+  const updateOutput = (key: string, change: Partial<RuleOutputDraft>) => {
+    setOutputs((current) => current.map((output) => output.key === key ? { ...output, ...change } : output))
+  }
+
+  const activeEvent = supportedEvents.includes(event)
+  const hasInvalidActiveOutput = isActive && outputs.some((output) => {
+    if (!output.isActive) return false
+    const template = templates.find((item) => item.templateKey === output.templateKey)
+    const version = template?.versions.find((item) => item.status === "ACTIVE")
+    const target = targets.find((item) => item.id === Number(output.targetId))
+    return !version || !target?.printer || version.paperType !== target.printer.paperType || version.paperSize !== target.printer.paperSize
+  })
+  const canSave = Boolean(name.trim() && outputs.length && outputs.every((output) => output.name.trim() && output.targetId && output.templateKey && output.copies >= 1 && output.copies <= 5) && (activeEvent || !isActive) && !hasInvalidActiveOutput && !saving)
+
+  const submit = (formEvent: React.FormEvent<HTMLFormElement>) => {
+    formEvent.preventDefault()
+    if (!canSave) return
+    const input: PrintRuleInput = {
+      name: name.trim(),
+      event,
+      isActive,
+      priority: Math.min(...outputs.map((output) => output.priority)),
+      outputs: outputs.map((output) => ({
+        ...(output.id ? { id: output.id } : {}),
+        name: output.name.trim(),
+        targetId: Number(output.targetId),
+        templateKey: output.templateKey,
+        priority: Number(output.priority),
+        copies: Number(output.copies),
+        isActive: output.isActive,
+      })),
+    }
+    void onSave(input).catch(() => undefined)
+  }
+
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+      <DialogHeader><DialogTitle>{rule ? "Editar regla de impresión" : "Nueva regla de impresión"}</DialogTitle><DialogDescription>El evento agrupa los documentos. Cada salida controla su propia plantilla, destino, orden y cantidad de copias.</DialogDescription></DialogHeader>
+      <form onSubmit={submit} className="grid gap-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Nombre descriptivo"><Input value={name} onChange={(event) => setName(event.target.value)} maxLength={191} placeholder="Venta · caja y preparación" required /></Field>
+          <Field label="Evento disparador"><select value={event} onChange={(e) => setEvent(e.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm" required>
+            <option value="SALE">Impresión de venta (SALE)</option><option value="CANCELLATION">Cancelación de venta (CANCELLATION)</option>
+            {rule && !supportedEvents.includes(rule.event) && <option value={rule.event}>{rule.event} · sin disparador conectado</option>}
+          </select></Field>
+        </div>
+        {rule && !activeEvent && isActive && <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Este evento existe en datos anteriores, pero no hay un flujo de negocio conectado. Desactiva la regla para guardar sus cambios.</p>}
+        <label className="flex items-center gap-2 text-sm"><Checkbox checked={isActive} onCheckedChange={(checked) => setIsActive(checked === true)} />Regla activa</label>
+
+        <section className="grid gap-3 border-t pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-semibold">Documentos de salida</h3><p className="text-xs text-muted-foreground">Cada salida representa un documento dirigido a un destino.</p></div><Button type="button" variant="outline" size="sm" onClick={() => setOutputs((current) => [...current, { key: `new-${Date.now()}-${current.length}`, name: "", targetId: "", templateKey: "", priority: current.length, copies: 1, isActive: true }])}><Plus className="size-4" />Añadir salida</Button></div>
+          {!targets.length && <p className="rounded-md border p-3 text-sm text-muted-foreground">No hay destinos activos disponibles. <Button type="button" variant="link" className="h-auto p-0" onClick={onOpenTargets}>Configurar destinos</Button></p>}
+          {outputs.map((output, index) => {
+            const template = templates.find((item) => item.templateKey === output.templateKey)
+            const version = template?.versions.find((item) => item.status === "ACTIVE")
+            const target = targets.find((item) => item.id === Number(output.targetId))
+            const printer = target?.printer
+            const incompatible = Boolean(version && printer && (version.paperType !== printer.paperType || version.paperSize !== printer.paperSize))
+            const missingPrinter = Boolean(target && !printer)
+            return <div key={output.key} className="grid gap-3 rounded-xl border p-4">
+              <div className="flex items-center justify-between gap-2"><h4 className="text-sm font-semibold">Salida {index + 1}</h4><Button type="button" variant="ghost" size="icon" aria-label={`Quitar salida ${index + 1}`} disabled={outputs.length === 1} onClick={() => setOutputs((current) => current.filter((item) => item.key !== output.key))}><Trash2 className="size-4 text-destructive" /></Button></div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Nombre del documento"><Input value={output.name} onChange={(e) => updateOutput(output.key, { name: e.target.value })} maxLength={191} placeholder="Ticket POS" required /></Field>
+                <Field label="Plantilla"><select value={output.templateKey} onChange={(e) => updateOutput(output.key, { templateKey: e.target.value })} className="h-9 rounded-md border bg-background px-3 text-sm" required><option value="">Seleccionar plantilla</option>{templates.map((item) => {
+                  const active = item.versions.find((itemVersion) => itemVersion.status === "ACTIVE")
+                  return <option key={item.id} value={item.templateKey}>{item.name} · {active ? `${active.paperSize} v${active.version}` : "sin versión activa"}</option>
+                })}</select></Field>
+                <Field label="Destino físico"><select value={output.targetId} onChange={(e) => updateOutput(output.key, { targetId: e.target.value })} className="h-9 rounded-md border bg-background px-3 text-sm" required><option value="">Seleccionar destino</option>{targets.map((item) => <option key={item.id} value={item.id} disabled={!item.isActive}>{item.name} · {item.location?.name || item.code}{item.isActive ? "" : " · inactivo"}</option>)}</select></Field>
+                <div className="grid grid-cols-2 gap-3"><Field label="Orden"><Input type="number" min={0} value={output.priority} onChange={(e) => updateOutput(output.key, { priority: Number(e.target.value) })} /></Field><Field label="Copias (1–5)"><Input type="number" min={1} max={5} value={output.copies} onChange={(e) => updateOutput(output.key, { copies: Number(e.target.value) })} /></Field></div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
+                <label className="flex items-center gap-2"><Checkbox checked={output.isActive} onCheckedChange={(checked) => updateOutput(output.key, { isActive: checked === true })} />Salida activa</label>
+                <span>{printer ? `${printer.name} · ${printer.paperSize} · Agent ${printer.printAgent?.status || "sin estado"}` : "Sin impresora física asignada"}</span>
+                {template && <Button asChild variant="link" className="h-auto p-0"><Link href={`/workstation/admin/settings/printStudio?templateId=${template.id}`}>Editar diseño en Print Studio</Link></Button>}
+              </div>
+              {output.isActive && isActive && !version && <p className="text-xs text-destructive">La plantilla necesita una versión activa para una salida activa.</p>}
+              {output.isActive && isActive && missingPrinter && <p className="text-xs text-destructive">El destino necesita una impresora física asignada.</p>}
+              {output.isActive && isActive && incompatible && <p className="text-xs text-destructive">El formato {version?.paperSize} de la plantilla no coincide con el papel {printer?.paperSize} de la impresora.</p>}
+              {output.isActive && isActive && target && !printer && <p className="text-xs text-destructive">Asigna una impresora al destino antes de activar esta salida.</p>}
+            </div>
+          })}
+        </section>
+        <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button type="submit" disabled={!canSave}><Save className="size-4" />{saving ? "Guardando…" : rule ? "Guardar cambios" : "Guardar regla"}</Button></DialogFooter>
+      </form>
+    </DialogContent>
+  </Dialog>
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="grid gap-1.5"><Label>{label}</Label>{children}</div> }
-function StatusCard({ icon: Icon, title, detail, variant }: { icon: typeof CheckCircle2, title: string, detail: string, variant: "success" | "info" | "neutral" }) { return <Card size="sm"><CardContent className="flex items-center gap-3"><Icon className="size-5 text-muted-foreground" /><div><p className="font-medium">{title}</p><p className="text-xs text-muted-foreground">{detail}</p></div><Badge className="ml-auto" variant={variant}>OK</Badge></CardContent></Card> }
+function StatusCard({ icon: Icon, title, detail, status, variant }: { icon: typeof CheckCircle2, title: string, detail: string, status: string, variant: "success" | "info" | "neutral" }) { return <Card size="sm"><CardContent className="flex items-center gap-3"><Icon className="size-5 text-muted-foreground" /><div><p className="font-medium">{title}</p><p className="text-xs text-muted-foreground">{detail}</p></div><Badge className="ml-auto" variant={variant}>{status}</Badge></CardContent></Card> }
 function ReceiptPreview({ editor, activeVersion }: { editor: EditorState; activeVersion?: PrintTemplateVersion }) {
   const mockData: PreviewData = {
     company: { name: "Clínica Veterinaria", address: "Calle Falsa 123" },

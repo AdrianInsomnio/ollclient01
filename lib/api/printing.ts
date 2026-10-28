@@ -9,11 +9,12 @@ export interface PrintLocation { id: number; name: string; code: string | null; 
 export interface PrintAgent { id: number; name: string; endpoint: string | null; status: "ONLINE" | "OFFLINE" | "DEGRADED"; location?: PrintLocation | null }
 export interface PrinterProfile { id: number; name: string; printerType: string; paperTypes: string[]; capabilities: Record<string, boolean> }
 export interface Printer { id: number; name: string; status: string; printerType: string; paperType: PrintPaperType; paperSize: PrintPaperSize; orientation: PrintOrientation; location?: PrintLocation | null; printAgent?: PrintAgent | null; profile?: PrinterProfile | null }
-export interface PrintTarget { id: number; code: string; name: string; location?: PrintLocation | null; printer?: Printer | null }
+export interface PrintTarget { id: number; code: string; name: string; isActive: boolean; location?: PrintLocation | null; printer?: Printer | null }
 export interface PrintTemplateVersion { id: number; version: number; status: "DRAFT" | "ACTIVE" | "ARCHIVED"; paperType: PrintPaperType; paperSize: PrintPaperSize; orientation: PrintOrientation; definition: PrintTemplateDefinition | string[]; createdAt?: string }
 export interface PrintTemplate { id: number; templateKey: string; name: string; documentType: string; isActive: boolean; versions: PrintTemplateVersion[] }
 export interface PrintAsset { id: number; name: string; storageKey: string; mimeType: string; width: number | null; height: number | null }
-export interface PrintRule { id: number; event: string; targetId: number; templateKey: string; priority: number; isActive: boolean }
+export interface PrintRuleOutput { id: number; name: string; targetId: number; templateKey: string; priority: number; copies: number; isActive: boolean; target?: PrintTarget | null }
+export interface PrintRule { id: number; name: string; event: string; priority: number; isActive: boolean; targetId?: number | null; templateKey?: string | null; outputs: PrintRuleOutput[]; createdAt?: string; updatedAt?: string }
 export interface PrintJob { id: number; status: string; targetId: number; lastError?: string | null }
 export interface PrintBatch { id: number; sourceDocumentType: string; status: string; createdAt: string; jobs: PrintJob[] }
 
@@ -59,10 +60,12 @@ export const deactivatePrintingTemplate = (id: number) =>
 export const deletePrintingTemplate = (id: number) =>
   post<{ id: number; deleted: true }>(`/printing/templates/${id}/delete`, {})
 
-export const createPrintingRule = (data: { event: string; targetId: number; templateKey: string; priority?: number }) =>
+export type PrintRuleInput = Pick<PrintRule, "name" | "event" | "isActive" | "priority"> & { outputs: Array<Omit<PrintRuleOutput, "id" | "target"> & { id?: number }> }
+
+export const createPrintingRule = (data: PrintRuleInput | { event: string; targetId: number; templateKey: string; priority?: number }) =>
 	post<PrintRule>("/printing/rules", data)
 
-export const updatePrintingRule = (id: number, data: { event: string; targetId: number; templateKey: string; priority: number }) =>
+export const updatePrintingRule = (id: number, data: Partial<PrintRuleInput> | { event?: string; targetId?: number; templateKey?: string; priority?: number; outputName?: string; copies?: number; outputIsActive?: boolean }) =>
   patch<PrintRule>(`/printing/rules/${id}`, data)
 
 export const deletePrintingRule = (id: number) =>
