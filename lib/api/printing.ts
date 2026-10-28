@@ -11,7 +11,7 @@ export interface PrintAgent { id: number; name: string; endpoint: string | null;
 export interface PrinterProfile { id: number; name: string; printerType: string; paperTypes: string[]; capabilities: Record<string, boolean> }
 export interface Printer { id: number; name: string; status: string; printerType: string; paperType: PrintPaperType; paperSize: PrintPaperSize; orientation: PrintOrientation; location?: PrintLocation | null; printAgent?: PrintAgent | null; profile?: PrinterProfile | null }
 export interface PrintTarget { id: number; code: string; name: string; isActive: boolean; location?: PrintLocation | null; printer?: Printer | null }
-export interface PrintTemplateVersion { id: number; version: number; status: "DRAFT" | "ACTIVE" | "ARCHIVED"; paperType: PrintPaperType; paperSize: PrintPaperSize; orientation: PrintOrientation; definition: PrintTemplateDefinition | string[]; createdAt?: string }
+export interface PrintTemplateVersion { id: number; version: number; status: "DRAFT" | "ACTIVE" | "ARCHIVED"; paperType: PrintPaperType; paperSize: PrintPaperSize; orientation: PrintOrientation; definition?: PrintTemplateDefinition | string[]; createdAt?: string }
 export interface PrintTemplate { id: number; templateKey: string; name: string; documentType: string; isActive: boolean; versions: PrintTemplateVersion[] }
 export interface PrintAsset { id: number; name: string; storageKey: string; mimeType: string; width: number | null; height: number | null }
 export interface PrintRuleOutput { id: number; name: string; targetId: number; templateKey: string; priority: number; copies: number; isActive: boolean; target?: PrintTarget | null }
@@ -67,7 +67,9 @@ function getPrintingCacheScope() {
 }
 
 export const getPrintingTemplates = (force = false) =>
-  templatesCache.get(() => get<PrintTemplate[]>("/printing/templates"), getPrintingCacheScope(), force)
+	templatesCache.get(() => get<PrintTemplate[]>("/printing/templates/summary"), getPrintingCacheScope(), force)
+export const getPrintingTemplateDetails = (id: number) =>
+	get<PrintTemplate>(`/printing/templates/${id}`)
 export const getPrintingLocations = () => get<PrintLocation[]>("/printing/locations")
 export const getPrintingAgents = () => get<PrintAgent[]>("/printing/agents")
 export const getPrintingProfiles = () => get<PrinterProfile[]>("/printing/profiles")
@@ -161,8 +163,8 @@ export const deletePrintingTemplateVersion = async (versionId: number) => {
 export const createPrintingAsset = (data: Pick<PrintAsset, "name" | "storageKey" | "mimeType" | "width" | "height">) =>
   post<PrintAsset>("/printing/assets", data)
 
-export const listPrintingBatches = (take: number = 50) => 
-	get<PrintBatch[]>(`/printing/batches?take=${take}`)
+export const listPrintingBatches = (take: number = 50, skip: number = 0) =>
+	get<PrintBatch[]>(`/printing/batches?take=${take}&skip=${skip}`)
 
 export const retryPrintingJob = (jobId: number) => 
 	post<PrintJob>(`/printing/jobs/${jobId}/retry`, {})

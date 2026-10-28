@@ -99,6 +99,8 @@ export default function PrintingSettingsPage() {
   const [rules, setRules] = useState<PrintRule[]>([])
   const [assets, setAssets] = useState<PrintAsset[]>([])
   const [batches, setBatches] = useState<PrintBatch[]>([])
+  const [historyPage, setHistoryPage] = useState(0)
+  const [hasMoreBatches, setHasMoreBatches] = useState(false)
   const [agentUrl, setAgentUrl] = useState("http://localhost:3333")
   const [agentApiKey, setAgentApiKey] = useState("")
   const [testPaperSize, setTestPaperSize] = useState<PrintPaperSize>("THERMAL_80")
@@ -162,7 +164,13 @@ export default function PrintingSettingsPage() {
         case "targets": setTargets(await getPrintingTargets()); break
         case "printers": setPrinters(await getPrintingPrinters()); break
         case "assets": setAssets(await getPrintingAssets()); break
-        case "batches": setBatches(await listPrintingBatches(50)); break
+        case "batches": {
+          const pageSize = 25
+          const result = await listPrintingBatches(pageSize + 1, historyPage * pageSize)
+          setHasMoreBatches(result.length > pageSize)
+          setBatches(result.slice(0, pageSize))
+          break
+        }
         case "locations": setLocations(await getPrintingLocations()); break
         case "rules": setRules(await getPrintingRules(refresh)); break
       }
@@ -189,10 +197,10 @@ export default function PrintingSettingsPage() {
 
     if (failedResources.length) setError(`No se pudo cargar ${failedResources.join("; ")}`)
     setLoading(resourceRequests.current.size > 0)
-  }, [])
+  }, [historyPage])
 
   useEffect(() => { void load(resourcesByTab.rules) }, [load])
-  useEffect(() => { void load(resourcesByTab[activeTab] ?? resourcesByTab.rules) }, [activeTab, load])
+  useEffect(() => { void load(resourcesByTab[activeTab] ?? resourcesByTab.rules, activeTab === "history") }, [activeTab, load])
 
   const openLocationModal = () => setIsLocationModalOpen(true);
   const openPrinterModal = () => setIsPrinterModalOpen(true);
@@ -617,6 +625,11 @@ export default function PrintingSettingsPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+        <div className="flex items-center justify-between">
+          <Button variant="outline" size="sm" disabled={historyPage === 0 || loading} onClick={() => setHistoryPage((page) => Math.max(0, page - 1))}>Anterior</Button>
+          <span className="text-xs text-muted-foreground">Página {historyPage + 1}</span>
+          <Button variant="outline" size="sm" disabled={!hasMoreBatches || loading} onClick={() => setHistoryPage((page) => page + 1)}>Siguiente</Button>
         </div>
       </TabsContent>
     </Tabs>

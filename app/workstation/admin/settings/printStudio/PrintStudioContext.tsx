@@ -189,13 +189,14 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
       const found = templatesList.find(t => String(t.id) === id);
       if (found) {
         setEditingTemplateId(null);
-        const version = [...(found.versions || [])].sort((a, b) => b.version - a.version)[0];
+        const details = await PrintingAPI.getPrintingTemplateDetails(found.id);
+        const version = [...(details.versions || [])].sort((a, b) => b.version - a.version)[0];
         const definition = version?.definition as { elements?: PrintElement[]; layout?: PrintElement[] } | undefined;
         setTemplate({
-          id: String(found.id),
-          name: found.name,
-          templateKey: found.templateKey,
-          documentType: found.documentType,
+          id: String(details.id),
+          name: details.name,
+          templateKey: details.templateKey,
+          documentType: details.documentType,
           pageSize: toPaperSize(version?.paperSize),
           layout: normalizeElementIds(definition?.elements || definition?.layout || []),
           status: version?.status,
@@ -213,7 +214,8 @@ export const PrintStudioProvider = ({ children }: { children: ReactNode }) => {
     try {
       const source = templates.find(item => String(item.id) === id);
       if (!source) throw new Error('No se encontró la plantilla para clonar');
-      const sourceVersion = [...source.versions].sort((a, b) => b.version - a.version)[0];
+      const sourceDetails = await PrintingAPI.getPrintingTemplateDetails(source.id);
+      const sourceVersion = [...sourceDetails.versions].sort((a, b) => b.version - a.version)[0];
       const cloned = await PrintingAPI.createPrintingTemplate({
         templateKey: `${source.templateKey}-copy-${Date.now()}`,
         name: `${source.name} (copia)`,
