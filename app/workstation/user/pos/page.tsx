@@ -963,6 +963,9 @@ export default function PosPage() {
       const currentDraftId = draftIdRef.current ?? draftId;
       if (currentDraftId && String(currentDraftId) !== String(sale.id)) {
         await deleteSale(String(currentDraftId));
+        draftIdRef.current = null;
+        setDraftId(null);
+        setResumedSaleId(null);
       }
       await resumeWaitingSale(String(sale.id));
       await restoreSale(String(sale.id), additionalItems);
