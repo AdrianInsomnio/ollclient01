@@ -123,11 +123,11 @@ function PetCard({ pet }: { pet: Pet }) {
 
   return (
     <Card className='group h-full transition-colors hover:border-primary/40 hover:bg-muted/20'>
-      <CardContent className='flex h-full flex-col gap-4 pt-4'>
+      <CardContent className='flex h-full flex-col gap-3 p-3'>
         <div className='flex items-start gap-3'>
           <Avatar
             size='lg'
-            className='h-12 w-12 shrink-0 ring-2 ring-primary/10'
+            className='h-10 w-10 shrink-0 ring-2 ring-primary/10'
           >
             <AvatarFallback className='bg-primary/10 text-primary text-sm font-semibold'>
               {initials}
@@ -210,8 +210,9 @@ export default function MascotasPage() {
   const totalCount = pets?.length ?? 0
 
   return (
-    <div className='space-y-6'>
-      <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-end'>
+    <div className='space-y-4'>
+      <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+        <div><h1 className='text-xl font-semibold tracking-tight'>Mascotas</h1><p className='text-sm text-muted-foreground'>Pacientes registrados en la clínica.</p></div>
         <div className='flex flex-wrap items-center gap-2'>
           <Link href='/workstation/user/mascotas/buscar'>
             <Button variant='outline' size='sm'>
@@ -230,21 +231,21 @@ export default function MascotasPage() {
 
       {/* ===== Barra de búsqueda local ===== */}
       {!isLoading && totalCount > 0 && (
-        <div className='relative max-w-md'>
+        <div className='relative max-w-full'>
           <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
           <Input
             type='search'
             placeholder='Buscar por nombre, especie o raza…'
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1) }}
-            className='pl-9'
+            className='h-9 pl-9'
           />
         </div>
       )}
 
       {/* ===== Contenido ===== */}
       {isLoading ? (
-        <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
           {Array.from({ length: 4 }).map((_, i) => (
             <PetCardSkeleton key={i} />
           ))}
@@ -292,14 +293,14 @@ export default function MascotasPage() {
         </Card>
       ) : (
         <>
-          <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+          <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
             {visiblePets.map((pet) => (
               <PetCard key={pet.id} pet={pet} />
             ))}
           </div>
 
           {/* Footer resumen */}
-          <div className='flex flex-col items-start justify-between gap-2 border-t pt-4 text-xs text-muted-foreground sm:flex-row sm:items-center'>
+          <div className='flex flex-col items-start justify-between gap-2 border-t pt-3 text-xs text-muted-foreground sm:flex-row sm:items-center'>
             <span>
               Mostrando {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredPets.length)} de {filteredPets.length}{' '}
               {filteredPets.length === 1 ? 'mascota' : 'mascotas'}

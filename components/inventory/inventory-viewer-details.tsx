@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Boxes, ExternalLink, Package, RefreshCw, Search } from 'lucide-react'
+import { Boxes, ChevronLeft, ChevronRight, ExternalLink, Package, RefreshCw, Search } from 'lucide-react'
 import Link from 'next/link'
 import { getProductStockMovements, getProducts, type Product, type StockMovement } from '@/lib/api/products'
 import { getProductCategories, type ProductCategory } from '@/lib/api/product-categories'
@@ -17,12 +17,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuthStore } from '@/lib/auth-store'
 
 const money = (value: number) => new Intl.NumberFormat('es-UY', { style: 'currency', currency: 'UYU' }).format(value)
+const PAGE_SIZE = 10
 
 export function InventoryViewerDetails() {
   const tenantId = useAuthStore((state) => state.tenantId ?? 'unknown')
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
   const [stock, setStock] = useState('all')
+  const [page, setPage] = useState(1)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const productsQuery = useQuery({ queryKey: ['inventory-viewer-products', tenantId], queryFn: () => getProducts({ isActive: true }) })
   const categoriesQuery = useQuery({ queryKey: ['inventory-categories', tenantId], queryFn: getProductCategories })
@@ -34,20 +36,23 @@ export function InventoryViewerDetails() {
     const matchesStock = stock === 'all' || (stock === 'available' ? product.stock > 0 : stock === 'low' ? product.stock > 0 && product.stock <= product.minStock : product.stock === 0)
     return matchesSearch && matchesCategory && matchesStock
   }), [productsQuery.data, search, category, stock])
+  const totalPages = Math.max(1, Math.ceil(products.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const visibleProducts = products.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   if (productsQuery.isLoading || categoriesQuery.isLoading) return <Loading />
   if (productsQuery.isError) return <Card><CardContent className="py-12 text-center text-sm text-destructive">No se pudo cargar el inventario.</CardContent></Card>
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div><p className="text-sm font-medium text-muted-foreground">Consulta</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">Inventario</h1><p className="mt-2 text-sm text-muted-foreground">Consulta disponibilidad, precios y categorías de la clínica.</p></div>
-        <Button variant="outline" onClick={() => { void productsQuery.refetch(); void categoriesQuery.refetch() }}><RefreshCw /> Actualizar</Button>
+    <div className="space-y-4">
+      <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div><h1 className="text-xl font-semibold tracking-tight">Inventario</h1><p className="text-sm text-muted-foreground">Disponibilidad, precios y categorías de la clínica.</p></div>
+        <Button variant="outline" size="sm" onClick={() => { void productsQuery.refetch(); void categoriesQuery.refetch() }}><RefreshCw className="mr-2 size-4" />Actualizar</Button>
       </header>
-      <div className="grid gap-4 sm:grid-cols-3"><Metric label="Productos visibles" value={products.length} icon={<Package />} /><Metric label="Con stock" value={products.filter((product) => product.stock > 0).length} icon={<Boxes />} /><Metric label="Stock bajo" value={products.filter((product) => product.stock > 0 && product.stock <= product.minStock).length} icon={<Boxes />} /></div>
+      <div className="grid gap-2 sm:grid-cols-3"><Metric label="Productos visibles" value={products.length} icon={<Package />} /><Metric label="Con stock" value={products.filter((product) => product.stock > 0).length} icon={<Boxes />} /><Metric label="Stock bajo" value={products.filter((product) => product.stock > 0 && product.stock <= product.minStock).length} icon={<Boxes />} /></div>
       <Card>
-        <CardHeader><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><CardTitle className="text-base">Productos disponibles</CardTitle><div className="flex flex-col gap-2 sm:flex-row"><div className="relative"><Search className="absolute left-2.5 top-2 size-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar producto o SKU" className="pl-8 sm:w-64" /></div><Select value={category} onValueChange={setCategory}><SelectTrigger className="sm:w-48"><SelectValue placeholder="Categoría" /></SelectTrigger><SelectContent><SelectItem value="all">Todas las categorías</SelectItem>{categories.filter((item: ProductCategory) => item.type !== 'SERVICIO').map((item: ProductCategory) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent></Select><Select value={stock} onValueChange={setStock}><SelectTrigger className="sm:w-40"><SelectValue placeholder="Stock" /></SelectTrigger><SelectContent><SelectItem value="all">Todo el stock</SelectItem><SelectItem value="available">Disponible</SelectItem><SelectItem value="low">Stock bajo</SelectItem><SelectItem value="empty">Sin stock</SelectItem></SelectContent></Select></div></div></CardHeader>
-        <CardContent className="p-0"><ProductTable products={products} categories={categories} onSelect={setSelectedProduct} /></CardContent>
+        <CardHeader className="px-4 py-3"><div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between"><CardTitle className="text-sm">Productos disponibles</CardTitle><div className="flex flex-col gap-2 sm:flex-row"><div className="relative"><Search className="absolute left-2.5 top-2 size-4 text-muted-foreground" /><Input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Buscar producto o SKU" className="h-9 pl-8 sm:w-64" /></div><Select value={category} onValueChange={(value) => { setCategory(value); setPage(1) }}><SelectTrigger className="h-9 sm:w-48"><SelectValue placeholder="Categoría" /></SelectTrigger><SelectContent><SelectItem value="all">Todas las categorías</SelectItem>{categories.filter((item: ProductCategory) => item.type !== 'SERVICIO').map((item: ProductCategory) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent></Select><Select value={stock} onValueChange={(value) => { setStock(value); setPage(1) }}><SelectTrigger className="h-9 sm:w-40"><SelectValue placeholder="Stock" /></SelectTrigger><SelectContent><SelectItem value="all">Todo el stock</SelectItem><SelectItem value="available">Disponible</SelectItem><SelectItem value="low">Stock bajo</SelectItem><SelectItem value="empty">Sin stock</SelectItem></SelectContent></Select></div></div></CardHeader>
+        <CardContent className="p-0"><ProductTable products={visibleProducts} categories={categories} onSelect={setSelectedProduct} /><div className="flex flex-col items-center justify-between gap-2 border-t px-4 py-3 sm:flex-row"><p className="text-xs text-muted-foreground">{products.length ? `Mostrando ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, products.length)} de ${products.length} productos` : '0 productos'}</p>{totalPages > 1 && <div className="flex items-center gap-2"><Button variant="outline" size="sm" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1} aria-label="Página anterior"><ChevronLeft className="size-4" /></Button><span className="min-w-20 text-center text-xs text-muted-foreground">Página {currentPage} de {totalPages}</span><Button variant="outline" size="sm" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={currentPage === totalPages} aria-label="Página siguiente"><ChevronRight className="size-4" /></Button></div>}</div></CardContent>
       </Card>
       <ProductOverviewDialog product={selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)} />
     </div>
@@ -55,7 +60,7 @@ export function InventoryViewerDetails() {
 }
 
 function Loading() { return <div className="flex min-h-48 items-center justify-center"><RefreshCw className="size-5 animate-spin text-muted-foreground" /></div> }
-function Metric({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) { return <Card><CardContent className="flex items-center gap-3"><div className="rounded-md bg-muted p-2 text-primary">{icon}</div><div><p className="text-sm text-muted-foreground">{label}</p><p className="text-2xl font-semibold tabular-nums">{value}</p></div></CardContent></Card> }
+function Metric({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) { return <Card size="sm"><CardContent className="flex items-center gap-3 p-3"><div className="rounded-md bg-muted p-1.5 text-primary [&>svg]:size-4">{icon}</div><div><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-semibold tabular-nums">{value}</p></div></CardContent></Card> }
 function StockBadge({ product }: { product: Product }) { return product.stock === 0 ? <Badge variant="destructive">Sin stock</Badge> : product.stock <= product.minStock ? <Badge variant="warning">Bajo</Badge> : <Badge variant="success">Disponible</Badge> }
 
 function ProductTable({ products, categories, onSelect }: { products: Product[]; categories: ProductCategory[]; onSelect: (product: Product) => void }) {

@@ -264,8 +264,9 @@ export default function UserCashPage() {
     );
 
   return (
-    <div className="space-y-6">
-      <header className="flex justify-end">
+    <div className="space-y-4">
+      <header className="flex items-center justify-between gap-3">
+        <div><h1 className="text-xl font-semibold tracking-tight">Caja</h1><p className="text-sm text-muted-foreground">Control del turno y movimientos de efectivo.</p></div>
         <Button
           variant="outline"
           size="icon"
@@ -284,9 +285,9 @@ export default function UserCashPage() {
       ) : (
         <>
           <Card className="border-foreground/10 bg-muted/30">
-            <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">
               <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-lg bg-foreground text-background">
+                <div className="flex size-9 items-center justify-center rounded-lg bg-foreground text-background">
                   <WalletCards className="size-5" />
                 </div>
                 <div>
@@ -331,7 +332,7 @@ export default function UserCashPage() {
             />
           ) : (
             <>
-              <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <Metric
                   label="Saldo inicial"
                   value={money(shift.openingAmount)}
@@ -356,14 +357,9 @@ export default function UserCashPage() {
                   emphasis
                 />
               </section>
-              <WaitingSalesPanel
-                sales={waitingSales}
-                onResume={resumeWaiting}
-                saving={saving}
-              />
-              <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-                <Card>
-                  <CardHeader className="flex-row items-start justify-between gap-4">
+                <div className="grid items-start gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+                  <Card>
+                    <CardHeader className="flex-row items-start justify-between gap-3 px-4 py-2.5">
                     <div>
                       <CardTitle>Turno #{shift.id}</CardTitle>
                       <CardDescription>
@@ -373,42 +369,44 @@ export default function UserCashPage() {
                     </div>
                     <Clock3 className="size-5 text-muted-foreground" />
                   </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-3">
-                      <Button onClick={() => setMovementOpen("CASH_IN")}>
+                    <CardContent className="space-y-3 px-4 pb-3 pt-0">
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" onClick={() => setMovementOpen("CASH_IN")}>
                         <ArrowDownToLine className="mr-2 size-4" />
                         Agregar dinero
                       </Button>
-                      <Button
-                        variant="outline"
+                        <Button
+                          variant="outline"
+                          size="sm"
                         onClick={() => setMovementOpen("CASH_OUT")}
                       >
                         <ArrowUpFromLine className="mr-2 size-4" />
                         Retirar dinero
                       </Button>
-                      <Button
-                        variant="secondary"
+                        <Button
+                          variant="secondary"
+                          size="sm"
                         onClick={() => setCloseOpen(true)}
                       >
                         <LockKeyhole className="mr-2 size-4" />
                         Finalizar turno
                       </Button>
                     </div>
-                    <div className="mt-6 border-t pt-4">
-                      <div className="mb-3 flex items-center justify-between">
+                    <div className="border-t pt-3">
+                        <div className="mb-2 flex items-center justify-between">
                         <h2 className="font-medium">Movimientos recientes</h2>
                         <span className="text-xs text-muted-foreground">
                           {movements.length} registrados
                         </span>
                       </div>
                       {movements.length === 0 ? (
-                        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                          <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
                           Todavía no hay movimientos. El saldo inicial está
                           listo para operar.
                         </p>
                       ) : (
-                        <div className="space-y-2">
-                          {movements.slice(0, 8).map((movement) => (
+                          <div className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
+                          {movements.slice(0, 6).map((movement) => (
                             <MovementRow
                               key={movement.id}
                               movement={movement}
@@ -419,14 +417,20 @@ export default function UserCashPage() {
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="h-fit">
-                  <CardHeader>
+                  <div className="space-y-3">
+                  <WaitingSalesPanel
+                    sales={waitingSales}
+                    onResume={resumeWaiting}
+                    saving={saving}
+                  />
+                  <Card className="h-fit">
+                    <CardHeader className="px-4 py-2.5">
                     <CardTitle>Resumen del turno</CardTitle>
                     <CardDescription>
                       Lectura rápida del efectivo físico.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                    <CardContent className="space-y-2.5 px-4 pb-3 pt-0">
                     <SummaryRow
                       label="Apertura"
                       value={money(shift.openingAmount)}
@@ -441,7 +445,7 @@ export default function UserCashPage() {
                       value={`− ${money(totals.cashOut)}`}
                       negative
                     />
-                    <div className="border-t pt-4">
+                      <div className="border-t pt-3">
                       <SummaryRow
                         label="Esperado al cierre"
                         value={money(expected)}
@@ -449,8 +453,9 @@ export default function UserCashPage() {
                       />
                     </div>
                   </CardContent>
-                </Card>
-              </div>
+                  </Card>
+                  </div>
+                </div>
             </>
           )}
         </>
@@ -518,7 +523,7 @@ function Metric({
             {icon}
           </span>
         </div>
-        <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+        <p className="mt-1 text-xl font-semibold tracking-tight">{value}</p>
       </CardContent>
     </Card>
   );
@@ -610,7 +615,7 @@ function OpenShift({
   return (
     <Card className="overflow-hidden">
       <div className="grid gap-0 md:grid-cols-[1fr_0.8fr]">
-        <div className="p-6 md:p-8">
+        <div className="p-4 md:p-5">
           <Badge variant="info">Paso 1 de 1</Badge>
           <h2 className="mt-4 text-2xl font-semibold tracking-tight">
             Comienza tu turno
@@ -619,7 +624,7 @@ function OpenShift({
             Registra el efectivo disponible antes de comenzar. Este monto será
             la base del arqueo.
           </p>
-          <div className="mt-6 max-w-sm space-y-2">
+          <div className="mt-4 max-w-sm space-y-2">
             <Label htmlFor="opening-amount">Saldo inicial</Label>
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
@@ -640,7 +645,7 @@ function OpenShift({
             </p>
           </div>
           <Button
-            className="mt-6"
+            className="mt-4"
             onClick={onSubmit}
             disabled={saving || !register}
           >
@@ -648,7 +653,7 @@ function OpenShift({
             turno
           </Button>
         </div>
-        <div className="flex items-center justify-center bg-muted/50 p-8">
+        <div className="flex items-center justify-center bg-muted/50 p-5">
           <div className="max-w-xs">
             <Banknote className="size-8 text-muted-foreground" />
             <p className="mt-4 text-sm font-medium">
@@ -880,7 +885,7 @@ function WaitingSalesPanel({
 }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4">
+      <CardHeader className="flex-row items-start justify-between gap-3 px-4 py-3">
         <div>
           <CardTitle>Cuentas en espera ({sales.length})</CardTitle>
           <CardDescription>
@@ -892,17 +897,17 @@ function WaitingSalesPanel({
           {sales.length ? "Pendientes" : "Sin pendientes"}
         </Badge>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 pb-3 pt-0">
         {sales.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <p className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
             No hay cuentas en espera en este turno.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="max-h-40 space-y-1.5 overflow-y-auto pr-1">
             {sales.map((sale) => (
               <div
                 key={sale.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2.5"
               >
                 <div>
                   <p className="font-medium">

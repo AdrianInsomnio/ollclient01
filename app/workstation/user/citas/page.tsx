@@ -273,14 +273,15 @@ export default function CitasPage() {
         ? `${formatDate(range.start, { day: "numeric", month: "short" })} — ${formatDate(range.end, { day: "numeric", month: "long", year: "numeric" })}`
         : formatDate(selectedDate, { month: "long", year: "numeric" });
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div><h1 className="text-xl font-semibold tracking-tight">Citas</h1><p className="text-sm text-muted-foreground">Agenda y seguimiento de turnos.</p></div>
         <Button onClick={() => setNewOpen(true)}>
           <Plus className="mr-2 size-4" />
           Nueva Cita
         </Button>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-3">
         <SummaryCard
           label="Citas hoy"
           value={todayAppointments.length}
@@ -300,9 +301,9 @@ export default function CitasPage() {
           tone="emerald"
         />
       </div>
-      <div className="grid gap-x-6 gap-y-6 xl:grid-cols-[260px_minmax(0,1fr)] xl:items-start xl:gap-y-0">
+      <div className="grid gap-x-4 gap-y-4 xl:grid-cols-[240px_minmax(0,1fr)] xl:items-start xl:gap-y-0">
       <Card className="sticky top-2 z-30 self-start rounded-b-none border-b-0 shadow-sm xl:col-start-2 xl:row-start-1">
-        <CardContent className="space-y-4 p-4 sm:p-5">
+        <CardContent className="space-y-3 p-3">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="relative min-w-0 flex-1 xl:max-w-md">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -342,7 +343,7 @@ export default function CitasPage() {
               </Button>
             </div>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-2 md:grid-cols-3">
             <FilterSelect
               label="Estado"
               value={status}
@@ -450,8 +451,8 @@ export default function CitasPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-4 sm:p-6">
-            <div className="mb-5 flex items-center gap-2 text-sm text-muted-foreground">
+          <CardContent className="p-3 sm:p-4">
+            <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
               <Filter className="size-4" />
               Mostrando citas reales de la clínica activa.
             </div>
@@ -602,13 +603,13 @@ function SummaryCard({
   };
   return (
     <Card size="sm">
-      <CardContent className="flex items-center justify-between">
+      <CardContent className="flex items-center justify-between p-3">
         <div>
           <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="mt-1 text-2xl font-semibold">{value}</p>
+          <p className="mt-0.5 text-xl font-semibold">{value}</p>
         </div>
         <div
-          className={`flex size-10 items-center justify-center rounded-xl ${classes[tone]}`}
+          className={`flex size-9 items-center justify-center rounded-lg ${classes[tone]}`}
         >
           {icon}
         </div>
