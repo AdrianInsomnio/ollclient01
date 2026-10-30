@@ -53,12 +53,7 @@ export function usePosDraftAutosave({
       submitting ||
       autosavePausedRef.current ||
       saveInFlightRef.current ||
-      cart.some(
-        (entry) =>
-          entry.itemType === "product" &&
-          (entry.item as Product).priceType !== "VARIABLE" &&
-          entry.quantity > (entry.item as Product).stock,
-      )
+      hasInsufficientStock
     ) {
       return;
     }
@@ -116,8 +111,8 @@ export function usePosDraftAutosave({
       }
     };
   }, [
-    cart,
     clients,
+    cart,
     discountRate,
     selectedClientId,
     submitting,

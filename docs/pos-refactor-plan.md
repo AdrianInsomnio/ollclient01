@@ -32,6 +32,8 @@ No cambiar contratos API, reglas de precio/pago/caja ni rediseñar checkout. Man
 
 Al juntar el carrito actual con una cuenta en espera, se pausa el autoguardado y se cancela su timer antes de esperar escrituras en curso. El carrito actual se conserva en una copia para combinarlo con la venta reanudada.
 
+La revisión estática detectó y eliminó una comprobación duplicada de stock en el hook de autoguardado; ahora recibe el resultado ya calculado por `PosPage`. Lint y build pasaron en la sesión de checkpoint. La validación manual quedó pendiente: `localhost:3000` responde, pero la automatización del navegador no pudo iniciar CDP y el acceso de navegador interactivo está deshabilitado en este entorno.
+
 ## Para retomar
 
 Revisar el diff del commit de checkpoint, ejecutar lint/build y hacer la prueba manual de los flujos enumerados. Empezar por borradores y cuentas en espera, que coordinan escrituras, borrado del borrador y recuperación de ventas.
