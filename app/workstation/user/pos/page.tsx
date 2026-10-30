@@ -119,7 +119,7 @@ type SubscriptionCharge = {
 };
 type PaymentLine = { method: string; amount: string };
 type CatalogFilter = "all" | "products" | "services";
-const CATALOG_PAGE_SIZE = 15;
+const CATALOG_PAGE_SIZE = 20;
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-UY", {
@@ -1194,8 +1194,8 @@ export default function PosPage() {
       </div>
     );
   return (
-    <div className="-m-6 flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-[#f5f8f8] text-slate-900">
-      <div className="mx-auto flex min-h-0 w-full max-w-400 flex-1 flex-col px-4 py-2 sm:px-6 lg:px-8">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f5f8f8] text-slate-900">
+      <div className="flex min-h-0 w-full flex-1 flex-col px-3 py-2 sm:px-4 lg:px-5 2xl:px-6">
         {false && <header className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-white px-3 py-2 shadow-[0_8px_30px_rgb(15_58_58/0.05)]">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-teal-700 text-white">
@@ -1280,9 +1280,9 @@ export default function PosPage() {
           </div>
         )}
         <div className="grid min-h-0 flex-1 items-stretch gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(320px,1fr)]">
-          <main className="min-w-0 space-y-3 overflow-y-auto pr-1">
+          <main className="min-w-0 space-y-2 overflow-y-auto pr-1">
             <Card className="border-slate-200/80 shadow-sm">
-              <CardContent className="flex flex-wrap items-start justify-between gap-3 p-2.5">
+              <CardContent className="flex flex-wrap items-center justify-between gap-2 p-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-700">
                     <UserRound className="size-4" />
@@ -1301,24 +1301,24 @@ export default function PosPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex w-full max-w-xs flex-col items-start gap-2 sm:w-56">
+                <div className="flex w-full max-w-none flex-row items-center gap-2 sm:w-auto">
                   <Button
                     size="sm"
-                    className="w-full justify-start"
+                    className="min-w-0 flex-1 justify-start sm:flex-none"
                     variant={selectedClient ? "outline" : "default"}
                     onClick={() => setClientOpen(true)}
                   >
                     <UserRound className="mr-2 size-4" />
                     {selectedClient ? "Cambiar tutor" : "Asignar tutor / mascota"}
                   </Button>
-                  <Button size="sm" className="w-full justify-start" variant="outline" onClick={() => void openInstallmentPicker()} disabled={!selectedClientId || installmentLoading || Boolean(cart.length)}>
+                  <Button size="sm" className="min-w-0 flex-1 justify-start sm:flex-none" variant="outline" onClick={() => void openInstallmentPicker()} disabled={!selectedClientId || installmentLoading || Boolean(cart.length)}>
                     {installmentLoading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <CreditCard className="mr-2 size-4" />}
                     Cargar cuotas
                   </Button>
                 </div>
               </CardContent>
             </Card>
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 shadow-sm">
               <Search className="size-5 shrink-0 text-teal-700" />
               <Input
                 ref={searchRef}
@@ -1328,7 +1328,7 @@ export default function PosPage() {
                   setCatalogSearch(event.target.value);
                 }}
                 placeholder="Buscar producto, medicamento, servicio o código..."
-                className="h-9 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
+                className="h-8 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
               />
               <kbd className="hidden rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-500 sm:inline">
                 F2
@@ -1339,7 +1339,7 @@ export default function PosPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-700">
                   Catálogo rápido
                 </p>
-                <h1 className="text-xl font-bold tracking-tight text-slate-950">
+                <h1 className="text-lg font-bold tracking-tight text-slate-950">
                   Productos y servicios
                 </h1>
               </div>
@@ -1376,7 +1376,7 @@ export default function PosPage() {
                 setCatalogFilter(value as CatalogFilter);
               }}
             >
-              <TabsList className="w-full justify-start overflow-x-auto bg-white p-1 shadow-sm">
+              <TabsList className="h-8 w-full justify-start overflow-x-auto bg-white p-1 shadow-sm">
                 <TabsTrigger value="all">Todos</TabsTrigger>
                 <TabsTrigger value="products">
                   <Package className="size-3.5" />
@@ -1419,8 +1419,8 @@ export default function PosPage() {
                   ))}
                 </div>
               )}
-              <TabsContent value={catalogFilter} className="mt-3">
-                <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
+              <TabsContent value={catalogFilter} className="mt-2">
+                <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {paginatedCatalogItems.map(({ itemType, item }) => {
                     const categoryName =
                       itemType === "product"
@@ -1460,10 +1460,10 @@ export default function PosPage() {
                         key={`${itemType}-${item.id}`}
                         className={`group transition hover:-translate-y-0.5 hover:shadow-md ${cardTheme.card}`}
                       >
-                        <CardContent className="flex h-22 min-h-0 flex-col p-1.5">
-                          <div className="mb-1 flex items-start justify-between gap-1">
+                        <CardContent className="flex h-20 min-h-0 flex-col p-1.5 xl:h-16 xl:p-1">
+                          <div className="mb-1 flex items-start justify-between gap-1 xl:mb-0">
                             <div
-                              className={`flex size-6 items-center justify-center rounded-md ${cardTheme.icon}`}
+                              className={`flex size-6 items-center justify-center rounded-md xl:size-5 ${cardTheme.icon}`}
                             >
                               {itemType === "service" ? (
                                 <Stethoscope className="size-3" />
@@ -1472,7 +1472,7 @@ export default function PosPage() {
                               )}
                             </div>
                               <Badge
-                                className="px-1.5 py-0 text-[9px]"
+                              className="px-1.5 py-0 text-[10px] font-medium"
                               variant={
                                 itemType === "service"
                                   ? "info"
@@ -1492,18 +1492,18 @@ export default function PosPage() {
                                     : `${stock} en stock`}
                             </Badge>
                           </div>
-                          <p className="line-clamp-1 text-xs font-semibold leading-tight text-slate-900">
+                          <p className="line-clamp-1 text-[13px] font-semibold leading-tight text-slate-900 xl:text-xs">
                             {item.name}
                           </p>
-                          <p className="mt-0.5 line-clamp-1 text-[10px] leading-tight text-slate-500 xl:hidden">
+                          <p className="mt-0.5 line-clamp-1 text-[11px] leading-tight text-slate-600 xl:hidden">
                             {itemType === "service"
                               ? (item as Service).description ||
                                 "Atención veterinaria"
                               : (item as Product).description ||
                                 "Producto para clínica"}
                           </p>
-                          <div className="mt-auto flex items-center justify-between gap-1 pt-1">
-                            <span className="text-xs font-bold text-slate-900">
+                          <div className="mt-auto flex items-center justify-between gap-1 pt-1 xl:pt-0">
+                            <span className="text-xs font-bold text-slate-900 xl:text-[11px]">
                               {(itemType === "product" && (item as Product).priceType === "VARIABLE") ? "Importe variable" : money(Number(item.price))}
                             </span>
                             <div className="flex items-center gap-1">
@@ -1511,24 +1511,24 @@ export default function PosPage() {
                                 type="button"
                                 size="icon-sm"
                                 variant="outline"
-                                className="size-6 rounded-md border-slate-300 bg-white/70 p-0 text-slate-600 hover:bg-white"
+                                className="size-6 rounded-md border-slate-300 bg-white/70 p-0 text-slate-600 hover:bg-white xl:size-5"
                                 aria-label={`Ver información de ${item.name}`}
                                 title="Ver información"
                                 onClick={() =>
                                   setCatalogInfoItem({ itemType, item } as CatalogInfoItem)
                                 }
                               >
-                                <Info className="size-3.5" />
+                                <Info className="size-3 xl:size-3" />
                               </Button>
                               <Button
                                 type="button"
                                 size="icon-sm"
-                                className={`size-6 rounded-md text-white shadow-sm ${cardTheme.action}`}
+                                className={`size-6 rounded-md text-white shadow-sm xl:size-5 ${cardTheme.action}`}
                                 aria-label={`Agregar ${item.name}`}
                                 disabled={stock === 0 && (item as Product).priceType !== "VARIABLE"}
                                 onClick={() => addToCart(item, itemType)}
                               >
-                                <Plus className="size-3.5" />
+                                <Plus className="size-3" />
                               </Button>
                             </div>
                           </div>
@@ -1538,13 +1538,14 @@ export default function PosPage() {
                   })}
                 </div>
                 {catalogItems.length > 0 && (
-                  <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <div className="mt-2 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5">
                     <span className="text-xs text-slate-500">
                       Página {safeCatalogPage} de {catalogPageCount}
                     </span>
                     <div className="flex gap-1">
                       <Button
                         size="sm"
+                        className="h-8"
                         variant="outline"
                         disabled={safeCatalogPage === 1}
                         onClick={() =>
@@ -1555,6 +1556,7 @@ export default function PosPage() {
                       </Button>
                       <Button
                         size="sm"
+                        className="h-8"
                         variant="outline"
                         disabled={safeCatalogPage === catalogPageCount}
                         onClick={() =>

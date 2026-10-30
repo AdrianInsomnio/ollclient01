@@ -17,6 +17,7 @@ export default function UserLayout({
   const router = useRouter()
   const pathname = usePathname()
   const { user, isAuthenticated, checking } = useAuthStore()
+  const isPosPage = pathname === '/workstation/user/pos'
   const isConsultoriosForVeterinarian = pathname === '/workstation/user/consultorios' && user?.role === 'VET'
   const hasWorkspaceAccess = user?.role === 'USER' || isConsultoriosForVeterinarian
 
@@ -43,7 +44,7 @@ export default function UserLayout({
            
             <Header clinicName={clinicName} notificationCount={0} />
             <main className='flex-1 bg-gray-50 overflow-y-auto'>
-              <div className='max-w-7xl mx-auto w-full p-6'>{children}</div>
+              <div className={isPosPage ? 'h-full min-h-0 w-full p-0' : 'max-w-7xl mx-auto w-full p-6'}>{children}</div>
             </main>
           </div>
         </SidebarInset>
